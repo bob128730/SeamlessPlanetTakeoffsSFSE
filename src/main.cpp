@@ -1,3 +1,5 @@
+#include "plugin.h"
+
 SFSE_PLUGIN_PRELOAD(const SFSE::PreLoadInterface* a_sfse)
 {
 	SFSE::Init(a_sfse);
@@ -9,7 +11,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 {
 	SFSE::Init(a_sfse);
 
-	REX::INFO("Hello World!");
+	SFSE::GetMessagingInterface()->RegisterListener(OnMessage);
 
 	return true;
 }
