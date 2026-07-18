@@ -349,10 +349,12 @@ namespace BobbyRE
 
 	struct atmosphereRenderSettings
 	{
-		byte pad[0x80];
+		std::byte pad[0x80];
 		float surfaceRadius;
 		float seaRadius;
 		float atmosphereTopRadius;
+		float seaOffset;
+		float atmosphereHeight;
 	};
 	struct PlanetComponent
 	{

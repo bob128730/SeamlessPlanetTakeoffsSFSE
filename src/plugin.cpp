@@ -7,9 +7,11 @@ RE::BGSLocation* newLocation;
 RE::NiMatrix3 takeoffRot;
 RE::NiMatrix3 landedRot;
 BobbyRE::atmosphereRenderSettings* atmosphereSettings;
+BobbyRE::atmosphereRenderSettings* originalAtmosphereSettings;
 BobbyRE::atmosphereRenderSettings* spaceAtmosphereSettings;
 
-RE::TESImageSpace::ImageSpaceSettings* g_imageSpaceSettings;
+RE::TESImageSpace::ImageSpaceSettings* g_spaceImageSpaceSettings;
+RE::TESImageSpace::ImageSpaceSettings* g_surfaceImageSpaceSettings;
 
 enum TAKEOFF_STATE
 {
@@ -26,6 +28,8 @@ struct takeoffState
 	float arrivalTimer;
 	float originalStarGlow;
 	float originalStarVisibility;
+	float originalIndirectDiffuse;
+	float originalIndirectSpecular;
 	bool originalDisableSimulatedVisibility;
 	RE::BGSAtmosphere* atmosphereForm;
 	float originalAtmosphereTopRadius;
@@ -207,12 +211,23 @@ void fadeAtmospherics(float t)
 {
 	if (t > 1)
 		return;
-	float targetAtmo           = atmosphereSettings->surfaceRadius + 900.0;
+	float targetAtmo           = atmosphereSettings->surfaceRadius + 100.0;
 	float targetStarVisibility = 1.0;
 	g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = 1;
 
 	atmosphereSettings->atmosphereTopRadius                        = lerp(g_takeoffState.originalAtmosphereTopRadius, targetAtmo, 1 - pow(1 - t, 3));
 	g_takeoffState.atmosphereForm->settings.stars.staticVisibility = lerp(g_takeoffState.originalStarVisibility, targetStarVisibility, t);
+}
+
+void fadeIndirectLighting(float t)
+{
+	if (t > 1)
+		return;
+	if (g_surfaceImageSpaceSettings)
+	{
+		g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value = lerp(g_takeoffState.originalIndirectDiffuse, 0, t);
+		g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value = lerp(g_takeoffState.originalIndirectSpecular, 0, t);
+	}
 }
 
 void fadeStarGlow(float t)
@@ -287,6 +302,8 @@ class TakeOffEventSink : public RE::BSTEventSink<BobbyRE::Spaceship::TakeOffEven
 				g_takeoffState.originalStarVisibility             = g_takeoffState.atmosphereForm->settings.stars.staticVisibility;
 				g_takeoffState.originalDisableSimulatedVisibility = g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility;
 				g_takeoffState.originalAtmosphereTopRadius        = atmosphereSettings->atmosphereTopRadius;
+
+				memcpy(originalAtmosphereSettings, atmosphereSettings, sizeof(BobbyRE::atmosphereRenderSettings));
 
 				toggleForceCloudRefresh(true);
 
@@ -416,8 +433,9 @@ namespace hooks
 				}
 				else
 				{
-					fadeWeather(g_takeoffState.fadeTimer / 5);
+					fadeWeather(g_takeoffState.fadeTimer / 5.0);
 					fadeAtmospherics(g_takeoffState.fadeTimer / 10.6);
+					fadeIndirectLighting(g_takeoffState.fadeTimer / 6.0);
 					g_takeoffState.fadeTimer += dt;
 
 					//vanilla anim complete at around 4.9 seconds
@@ -486,6 +504,13 @@ namespace hooks
 						g_takeoffState.cloudForm->layers = g_takeoffState.originalLayers;
 						g_takeoffState.cloudForm->planes = g_takeoffState.originalPlanes;
 					}
+
+					if (g_surfaceImageSpaceSettings)
+					{
+						free((void *)g_surfaceImageSpaceSettings);
+						g_surfaceImageSpaceSettings = 0;
+					}
+
 					toggleForceCloudRefresh(false);
 				}
 				break;
@@ -503,8 +528,26 @@ namespace hooks
 
 	void *hook_unkFunc2(void* a1, RE::TESImageSpace::ImageSpaceSettings *settings)
 	{
-		if (RE::TES::GetSingleton()->sky->mode == 1)
-			settings = g_imageSpaceSettings;
+		//if (RE::TES::GetSingleton()->sky->mode == 1)
+		//	settings = g_spaceImageSpaceSettings;
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
+		{
+			if (!g_surfaceImageSpaceSettings)
+			{
+				g_surfaceImageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings*)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
+				if (g_surfaceImageSpaceSettings)
+				{
+					memcpy(g_surfaceImageSpaceSettings, settings, sizeof(RE::TESImageSpace::ImageSpaceSettings));
+					g_takeoffState.originalIndirectDiffuse  = g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value;
+					g_takeoffState.originalIndirectSpecular = g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value;
+				}
+			}
+			else
+			{
+				settings->IndirectLighting.IndirectDiffuseMultiplier.value  = g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value;
+				settings->IndirectLighting.IndirectSpecularMultiplier.value = g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value;
+			}
+		}
 		return original_unkFunc2(a1, settings);
 	}
 
@@ -542,12 +585,8 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		REX::INFO("Init");
 		settings.load();
 		g_takeoffState = {};
-		RE::TESImageSpace* spaceImageSpace =  (RE::TESImageSpace*)(RE::TESForm::LookupByID(0x09a68a));
 
-		g_imageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings *)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
-
-		if(g_imageSpaceSettings)
-			memcpy(g_imageSpaceSettings, &spaceImageSpace->settings, sizeof(RE::TESImageSpace::ImageSpaceSettings));
+		originalAtmosphereSettings = (BobbyRE::atmosphereRenderSettings*)malloc(sizeof(BobbyRE::atmosphereRenderSettings));
 
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
 		using GetFn = RE::BSTGlobalEvent::EventSource<BobbyRE::Spaceship::TakeOffEvent>* (*)();
