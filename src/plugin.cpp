@@ -561,7 +561,10 @@ namespace hooks
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
-		uintptr_t setSpacePlanetOrbitCall = addr3 + 0x89e;
+
+		// +0x89e in 1.16.236
+		uintptr_t setSpacePlanetOrbitCall = addr3 + 0x8f3;
+
 		uintptr_t unkFuncCall = addr4 + 0x14a;
 		uintptr_t PCUpdateCall = addr5 + 0xe2;
 		uintptr_t unkFunc2Call = adde6 + 0x350;
