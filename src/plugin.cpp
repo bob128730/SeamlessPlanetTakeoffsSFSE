@@ -275,30 +275,6 @@ void toggleForceCloudRefresh(bool enable)
 	VirtualProtect(shouldRefresh, 6, OldProtect, &OldProtect);
 }
 
-void toggleFramePresent(bool enable)
-{
-	REX::INFO("toggle frame present: {}", enable);
-	uintptr_t addr = REL::Relocation<uintptr_t>(REL::ID(142976)).address();
-	void* presentCall = (void*)(addr + 0x103);
-
-	int8_t instruction[3];
-
-	if (enable)
-	{
-		int8_t originalCall[3] = { 0xff, 0x50, 0x40 };
-		memcpy(instruction, originalCall, 3);
-	}
-	else {
-		int8_t zerorax[3] = { 0x48, 0x31, 0xc0 };
-		memcpy(instruction, zerorax, 3);
-	}
-
-	DWORD OldProtect;
-	VirtualProtect(presentCall, 3, PAGE_EXECUTE_READWRITE, &OldProtect);
-	memcpy_s(presentCall, 3, instruction, 3);
-	VirtualProtect(presentCall, 3, OldProtect, &OldProtect);
-}
-
 class TakeOffEventSink : public RE::BSTEventSink<BobbyRE::Spaceship::TakeOffEvent> 
 {
 	using func_playerFastTravel_t = bool(RE::PlayerCharacter*, void*, RE::NiPoint3*, RE::TESObjectCELL*, bool, bool, bool, bool, uint16_t);
@@ -484,11 +460,9 @@ namespace hooks
 			}
 			case TAKEOFF_LOAD_STARTED:
 			{
-				toggleFramePresent(false);
 				manualLoadSystem(player->GetSpaceship());
 				RE::TES::GetSingleton()->sky->mode = 0;
 				g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
-				toggleFramePresent(true);
 				break;
 			}
 			case TAKEOFF_LOAD_COMPLETE:
@@ -583,7 +557,7 @@ namespace hooks
 		uintptr_t addr3 = REL::Relocation<uintptr_t>(REL::ID(57653)).address();
 		uintptr_t addr4 = REL::Relocation<uintptr_t>(REL::ID(128483)).address();
 		uintptr_t addr5 = REL::Relocation<uintptr_t>(REL::ID(99411)).address();
-		uintptr_t addr6 = REL::Relocation<uintptr_t>(REL::ID(99415)).address();
+		uintptr_t adde6 = REL::Relocation<uintptr_t>(REL::ID(99415)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
@@ -593,7 +567,8 @@ namespace hooks
 
 		uintptr_t unkFuncCall = addr4 + 0x14a;
 		uintptr_t PCUpdateCall = addr5 + 0xe2;
-		uintptr_t unkFunc2Call = addr6 + 0x350;
+		uintptr_t unkFunc2Call = adde6 + 0x350;
+
 		REL::Trampoline& tramp = REL::GetTrampoline();
 		tramp.create(128);
 
