@@ -1,18 +1,21 @@
 #include "INIReader.h"
 
-struct config 
+struct config
 {
-	void load() 
+	void load()
 	{
 		INIReader reader("Data\\SFSE\\plugins\\SPT_Config.ini");
-		if (reader.ParseError() != 0) 
+		if (reader.ParseError() != 0)
 		{
 			REX::WARN("Failed to read config file, using default");
 			return;
 		}
 		this->DisableTakeOffCam = reader.GetBoolean("Config", "DisableTakeOffCam", true);
+		this->TakeoffExtensionLength = reader.GetFloat("Config", "TakeoffExtensionLength", 5.6f);
+		if (this->TakeoffExtensionLength == 0)
+			this->TakeoffExtensionLength = 0.01f;
 	}
 
 	bool DisableTakeOffCam = 1;
-	bool GravLanesSupport = 0;
+	float TakeoffExtensionLength = 5.6f;
 };

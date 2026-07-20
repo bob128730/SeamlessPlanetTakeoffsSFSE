@@ -433,9 +433,9 @@ namespace hooks
 				}
 				else
 				{
-					fadeWeather(g_takeoffState.fadeTimer / 5.0);
-					fadeAtmospherics(g_takeoffState.fadeTimer / 10.6);
-					fadeIndirectLighting(g_takeoffState.fadeTimer / 6.0);
+					fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.1f));
+					fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
+					fadeIndirectLighting(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
 					g_takeoffState.fadeTimer += dt;
 
 					//vanilla anim complete at around 4.9 seconds
@@ -448,9 +448,10 @@ namespace hooks
 							g_takeoffState.endAnimPos   = ship->data.location;
 						}
 
-						extendTakeoffAnim(ship, (g_takeoffState.fadeTimer - 5) / 5.6);
+						if(settings.TakeoffExtensionLength > 1.0)
+							extendTakeoffAnim(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
 					}
-					if (g_takeoffState.fadeTimer > 10.6)
+					if (g_takeoffState.fadeTimer > 5 + settings.TakeoffExtensionLength)
 					{
 						g_takeoffState.state = TAKEOFF_LOAD_STARTED;
 						REX::INFO("fade complete");
