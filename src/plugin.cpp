@@ -46,7 +46,7 @@ void updateDiscoveryInfo(RE::TESObjectREFR* ship)
 {
 	using func_updateDiscoveredStatus_t = void* (RE::Actor*, RE::BGSLocation*);
 	REL::Relocation<func_updateDiscoveredStatus_t>updatePlanetDiscoveryStatus{ REL::ID(102968) };
-	updatePlanetDiscoveryStatus(BobbyRE::Spaceship::GetPilot(ship), newLocation);
+	updatePlanetDiscoveryStatus(ship->GetSpaceshipPilot(), newLocation);
 
 	REL::Relocation<uintptr_t*>unkGlobal{ REL::ID(938414) };
 
@@ -65,9 +65,6 @@ void manualLoadSystem(RE::TESObjectREFR* ship)
 
 	getRotationMatrix(ship, &takeoffRot);
 
-	using func_getParentLocation_t = RE::BGSLocation* (RE::TESObjectREFR*);
-	REL::Relocation<func_getParentLocation_t>getParentLocation{ REL::ID(63412) };
-
 	using func_loadSystem_t = int(RE::TESObjectREFR*, RE::TESObjectCELL*, bool, double);
 	REL::Relocation<func_loadSystem_t>loadSystem{ REL::ID(102641) };
 
@@ -77,13 +74,13 @@ void manualLoadSystem(RE::TESObjectREFR* ship)
 
 	RE::TESObjectCELL* parentCell = ship->parentCell;
 	removeObjectFromCell(parentCell, ship, false);
-	prevLocation = getParentLocation(ship);
+	prevLocation = ship->GetCurrentLocation();
 
 	RE::TESObjectCELL* GalaxyCell = (RE::TESObjectCELL*)RE::TESObjectCELL::LookupByID(0x18343);
 
 	ship->SetParentCell(GalaxyCell);
 	loadSystem(ship, parentCell, 0, 1);
-	newLocation = getParentLocation(ship);
+	newLocation = ship->GetCurrentLocation();
 
 	RE::NiPoint3 a3{ 0,0,0 };
 
@@ -275,19 +272,19 @@ void toggleForceCloudRefresh(bool enable)
 	VirtualProtect(shouldRefresh, 6, OldProtect, &OldProtect);
 }
 
-class TakeOffEventSink : public RE::BSTEventSink<BobbyRE::Spaceship::TakeOffEvent> 
+class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent> 
 {
 	using func_playerFastTravel_t = bool(RE::PlayerCharacter*, void*, RE::NiPoint3*, RE::TESObjectCELL*, bool, bool, bool, bool, uint16_t);
 
-	RE::BSEventNotifyControl ProcessEvent(const BobbyRE::Spaceship::TakeOffEvent& event, RE::BSTEventSource<BobbyRE::Spaceship::TakeOffEvent>* a_source)
+	RE::BSEventNotifyControl ProcessEvent(const RE::Spaceship::TakeOffEvent& event, RE::BSTEventSource<RE::Spaceship::TakeOffEvent>* a_source)
 	{
-		RE::TESObjectREFR* ship = event.source.get();
+		RE::TESObjectREFR* ship = event.ship.get();
 
-		if (BobbyRE::Spaceship::GetPilot(ship) == RE::PlayerCharacter::GetSingleton() || ship->HasKeyword((RE::BGSKeyword*)RE::TESForm::LookupByID(0x101da7)))
+		if (ship->GetSpaceshipPilot() == RE::PlayerCharacter::GetSingleton() || ship->HasKeyword((RE::BGSKeyword*)RE::TESForm::LookupByID(0x101da7)))
 		{
 			REX::INFO("Player takeoff event");
-			REX::INFO("State: {}", event.aeState);
-			if (event.aeState == 0)
+			REX::INFO("State: {}", event.state);
+			if (event.state == 0)
 			{
 				RE::Sky* sky = RE::TES::GetSingleton()->sky;
 				g_takeoffState.cloudForm =sky->currentWeather->clouds;
@@ -593,9 +590,7 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		originalAtmosphereSettings = (BobbyRE::atmosphereRenderSettings*)malloc(sizeof(BobbyRE::atmosphereRenderSettings));
 
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
-		using GetFn = RE::BSTGlobalEvent::EventSource<BobbyRE::Spaceship::TakeOffEvent>* (*)();
-		auto TakeOffEvent_GetSource = REL::Relocation<GetFn>(REL::ID(120552));
-		auto source = TakeOffEvent_GetSource();
+		auto source = RE::Spaceship::TakeOffEvent::GetEventSource();
 		source->RegisterSink(TakeOffSink);
 
 		//stop normal loading

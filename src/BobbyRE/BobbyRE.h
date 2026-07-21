@@ -4,18 +4,6 @@ namespace BobbyRE
 {
 	namespace Spaceship 
 	{
-		struct GravJumpEvent : RE::Spaceship::GravJumpEvent 
-		{
-			RE::NiPointer<RE::TESObjectREFR> source; //source ship
-			int aeState; // State { Initiated = 0, AnimStarted = 1, Completed = 2, Failed = 3 }
-			RE::NiPointer<RE::BGSLocation> Location; 
-		};
-
-		struct TakeOffEvent : RE::Spaceship::TakeOffEvent 
-		{
-			RE::NiPointer<RE::TESObjectREFR> source;
-			int aeState; 
-		};
 
 		struct FarTravelEvent : RE::Spaceship::FarTravelEvent
 		{
@@ -24,13 +12,6 @@ namespace BobbyRE
 			RE::BGSLocation *fromLocation2;
 			uint32_t unk5;
 		};
-
-		RE::Actor* GetPilot(RE::TESObjectREFR* ship) 
-		{
-			using func_t = decltype(&GetPilot);
-			static REL::Relocation<func_t> func{ REL::ID(119876) };
-			return func(ship);
-		}
 	}
 
 	struct PositionPlayerEvent 
@@ -183,169 +164,6 @@ namespace BobbyRE
 		};
 
 	}
-
-	class ImageSpaceSettings
-	{
-		struct SunAndSkySettings
-		{
-			RE::BSBlendable::FloatValue DirectionalLightIlluminanceOverride;
-			RE::BSBlendable::FloatValue IndirectLightingSkyScaleOverride;
-			RE::BSBlendable::FloatValue IndirectLightingSkyTargetEv100;
-			RE::BSBlendable::FloatValue IndirectLightingSkyTargetStrength;
-			RE::BSBlendable::FloatValue SkyLightingMultiplier;
-			RE::BSBlendable::FloatValue CelestialBodyIlluminanceScaleOverride;
-			RE::BSBlendable::FloatValue CelestialBodyIndirectIlluminanceScaleOverride;
-			RE::BSBlendable::FloatValue SunDiskIlluminanceScaleOverride;
-			RE::BSBlendable::FloatValue SunDiskIndirectIlluminanceScaleOverride;
-			RE::BSBlendable::FloatValue StarfieldBackgroundScaleOverride;
-			RE::BSBlendable::FloatValue StarfieldStarBrightnessScaleOverride;
-			RE::BSBlendable::FloatValue SpaceGlowBackgroundScaleOverride;
-			RE::BSBlendable::FloatValue CloudDirectLightingContribution;
-			RE::BSBlendable::FloatValue CloudIndirectLightingContribution;
-		};
-
-
-		struct ExposureSettings
-		{
-			struct LuminanceHistogramSettings
-			{
-				RE::BSBlendable::FloatValue IgnoredDarksPercentile;
-				RE::BSBlendable::FloatValue IgnoredBrightsPercentile;
-			};
-
-			struct AutoExposureSettings
-			{
-				bool                        EnableCompensationCurve;
-				RE::BSFloatCurve            ExposureCompensationCurve;
-				RE::BSBlendable::FloatValue ExposureMin;
-				RE::BSBlendable::FloatValue ExposureMax;
-				RE::BSBlendable::FloatValue AdaptSpeedDown;
-				RE::BSBlendable::FloatValue AdaptSpeedUp;
-				LuminanceHistogramSettings  LuminanceHistogram;
-				std::byte pad[16];
-			};
-
-			struct CameraExposureSettings
-			{
-				RE::BSBlendable::FloatValue Aperture;
-				RE::BSBlendable::FloatValue Time;
-				RE::BSBlendable::FloatValue ISO;
-			};
-
-			std::uint32_t               CameraExposureMode;
-			AutoExposureSettings        AutoExposure;
-			RE::BSBlendable::FloatValue FixedValue;
-			CameraExposureSettings      CameraExposure;
-		};
-
-		struct BloomSettings
-		{
-			RE::BSBlendable::FloatValue BloomThresholdOffset;
-			RE::BSBlendable::FloatValue BloomScale;
-			RE::BSBlendable::FloatValue BloomRangeScale;
-		};
-
-		struct CinematicSettings
-		{
-			RE::BSBlendable::FloatValue Saturation;
-			RE::BSBlendable::FloatValue Brightness;
-			RE::BSBlendable::FloatValue Contrast;
-			RE::BSBlendable::ColorValue TintColourValue;
-			RE::BSBlendable::ColorValue FadeColourValue;
-			RE::BSFixedString*          ColorGradingTexture;
-			float                       ColourGradingAmount;
-		};
-
-		struct DepthOfFieldSettings
-		{
-			uint32_t                    Mode;
-			bool                        NoSky;
-			RE::BSBlendable::FloatValue StrengthValue;
-			RE::BSBlendable::FloatValue FarStartValue;
-			RE::BSBlendable::FloatValue FarPlaneValue;
-			RE::BSBlendable::FloatValue FarOpacityValue;
-			RE::BSBlendable::FloatValue NearStartValue;
-			RE::BSBlendable::FloatValue NearPlaneValue;
-			RE::BSBlendable::FloatValue NearOpacityValue;
-			bool                        UseTargetForDepthOfField;
-		};
-
-		struct BlurSettings {
-			RE::BSBlendable::FloatValue BlurRadiusValue;
-			RE::BSBlendable::FloatValue DoubleVisionStrengthValue;
-			RE::BSBlendable::FloatValue MotionBlurStrengthValue;
-		};
-
-		struct RadialBlurSettings
-		{
-			RE::BSBlendable::FloatValue StrengthValue;
-			RE::BSBlendable::FloatValue RampUpValue;
-			RE::BSBlendable::FloatValue RampDownValue;
-			RE::BSBlendable::FloatValue StartValue;
-			RE::BSBlendable::FloatValue DownStartValue;
-			RE::BSBlendable::FloatValue CenterXValue;
-			RE::BSBlendable::FloatValue CenterYValue;
-			bool                        UseTargetForRadialBlur;
-		};
-
-		struct AmbientOcclusionSettings
-		{
-			RE::BSBlendable::FloatValue IntensityValue;
-		};
-		
-		struct FogSettings
-		{
-			RE::BSBlendable::FloatValue FogScaleValue;
-		};
-
-		struct VolumetricLightingSettings
-		{
-			RE::BSBlendable::FloatValue FogMapContribution;
-			RE::BSBlendable::FloatValue VolumetricLightingDirectionalLightScale;
-			RE::BSBlendable::FloatValue VolumetricLightingDirectionalAnisoScale;
-			RE::BSBlendable::FloatValue VolumetricIndirectLightContribution;
-		};
-
-		struct IndirectLightingSettings
-		{
-			RE::BSBlendable::FloatValue IndirectDiffuseMultiplier;
-			RE::BSBlendable::FloatValue IndirectSpecularMultiplier;
-			RE::BSBlendable::FloatValue WaterIndirectSpecularMultiplier;
-			bool                        UseAsInteriorCriteria;
-			bool                        BlockClothWindIfInterior;
-		};
-
-		struct ToneMappingSettings
-		{
-			uint32_t                    CurveType;
-			RE::BSBlendable::FloatValue WhitePointValue;
-			RE::BSBlendable::FloatValue ToneMapE;
-			RE::BSBlendable::FloatValue HableToeStrength;
-			RE::BSBlendable::FloatValue HableToeLength;
-			RE::BSBlendable::FloatValue HableShoulderStrength;
-			RE::BSBlendable::FloatValue HableShoulderLength;
-			RE::BSBlendable::FloatValue HableShoulderAngle;
-		};
-
-		//0x150 in TESImageSpace
-		float                      OverallBlendAmount; // 00
-		bool                       UseOutdoorExposure; // 04
-		ExposureSettings           Exposure;           // 08
-		SunAndSkySettings          SunAndSky;          //
-		BloomSettings              Bloom;
-		CinematicSettings          Cinematic;
-		std::byte                  pad[8];
-		DepthOfFieldSettings       DepthOfField;
-		BlurSettings               Blur;
-		RadialBlurSettings         RadialBlur;
-		AmbientOcclusionSettings   AmbientOcclusion;
-		FogSettings                Fog;
-		VolumetricLightingSettings VolumetricLighting;
-		IndirectLightingSettings   IndirectLighting;
-		bool                       OverrideToneMapping;
-		ToneMappingSettings        ToneMapping;
-
-	};
 
 	struct atmosphereRenderSettings
 	{
