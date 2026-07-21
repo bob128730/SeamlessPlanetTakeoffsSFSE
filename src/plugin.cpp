@@ -266,10 +266,7 @@ void toggleForceCloudRefresh(bool enable)
 		memcpy(instruction, jz, 6);
 	}
 
-	DWORD OldProtect;
-	VirtualProtect(shouldRefresh, 6, PAGE_EXECUTE_READWRITE, &OldProtect);
-	memcpy_s(shouldRefresh, 6, instruction, 6);
-	VirtualProtect(shouldRefresh, 6, OldProtect, &OldProtect);
+	REL::WriteSafeData(shouldRefresh, instruction);
 }
 
 class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent> 
@@ -604,10 +601,7 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 
 		int8_t nopcall[5] = { 0x90, 0x90, 0x90, 0x90, 0x90 };
 
-		DWORD OldProtect;
-		VirtualProtect(addCellToLoaderCall, 5, PAGE_EXECUTE_READWRITE, &OldProtect);
-		memcpy_s(addCellToLoaderCall, 5, nopcall, 5);
-		VirtualProtect(addCellToLoaderCall, 5, OldProtect, &OldProtect);
+		REL::WriteSafeData(addCellToLoaderCall, nopcall);
 
 		//prevent the unload function from showing the load screen
 		uintptr_t unloadCurrentLocation = REL::Relocation<uintptr_t>( REL::ID(46037)).address();
@@ -615,18 +609,14 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 
 		byte jmp = 0xEB;
 
-		VirtualProtect(shouldStartLoadScreen, 1, PAGE_EXECUTE_READWRITE, &OldProtect);
-		*shouldStartLoadScreen = jmp;
-		VirtualProtect(shouldStartLoadScreen, 1, OldProtect, &OldProtect);
+		REL::WriteSafeData(shouldStartLoadScreen, jmp);
 
 		if (settings.DisableTakeOffCam) 
 		{
 			uintptr_t initiateTakeOffSequence = REL::Relocation<uintptr_t>(REL::ID(119908)).address();
-			byte* shouldStartGravCam = (byte*)(initiateTakeOffSequence + 0x1c9);
+			byte* shouldStartTakeOffCam = (byte*)(initiateTakeOffSequence + 0x1c9);
 
-			VirtualProtect(shouldStartGravCam, 1, PAGE_EXECUTE_READWRITE, &OldProtect);
-			*shouldStartGravCam = jmp;
-			VirtualProtect(shouldStartGravCam, 1, OldProtect, &OldProtect);
+			REL::WriteSafeData(shouldStartTakeOffCam, jmp);
 		}
 
 		hooks::install();
