@@ -571,7 +571,6 @@ namespace hooks
 		uintptr_t unkFunc2Call = adde6 + 0x350;
 
 		REL::Trampoline& tramp = REL::GetTrampoline();
-		tramp.create(128);
 
 		//original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
 		original_setSpacePlanetOrbit = (func_setSpacePlanetOrbit_t*)tramp.write_call<5>(setSpacePlanetOrbitCall, hook_setSpacePlanetOrbit);
