@@ -280,36 +280,39 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 	{
 		RE::TESObjectREFR* ship = event.ship.get();
 
-		if (ship->GetSpaceshipPilot() == RE::PlayerCharacter::GetSingleton() || ship->HasKeyword((RE::BGSKeyword*)RE::TESForm::LookupByID(0x101da7)))
+		if (g_takeoffState.state == NOT_STARTED) //npc ships send extra event?
 		{
-			REX::INFO("Player takeoff event");
-			REX::INFO("State: {}", event.state);
-			if (event.state == 0)
+			if (RE::PlayerCharacter::GetSingleton()->GetSpaceship() == ship)
 			{
-				RE::Sky* sky = RE::TES::GetSingleton()->sky;
-				g_takeoffState.cloudForm =sky->currentWeather->clouds;
-				if (!g_takeoffState.cloudForm)
+				REX::INFO("Player takeoff event");
+				REX::INFO("State: {}", event.state);
+				if (event.state == 0)
 				{
-					if (sky->lastWeather)
-						g_takeoffState.cloudForm = sky->lastWeather->clouds;
+					RE::Sky* sky = RE::TES::GetSingleton()->sky;
+					g_takeoffState.cloudForm = sky->currentWeather->clouds;
+					if (!g_takeoffState.cloudForm)
+					{
+						if (sky->lastWeather)
+							g_takeoffState.cloudForm = sky->lastWeather->clouds;
+					}
+
+					g_takeoffState.atmosphereForm = getPlanetAtmosphere(BobbyRE::BGSPlanet::Manager::GetSingleton()->char110);
+
+					g_takeoffState.originalStarVisibility = g_takeoffState.atmosphereForm->settings.stars.staticVisibility;
+					g_takeoffState.originalDisableSimulatedVisibility = g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility;
+					g_takeoffState.originalAtmosphereTopRadius = atmosphereSettings->atmosphereTopRadius;
+
+					memcpy(originalAtmosphereSettings, atmosphereSettings, sizeof(BobbyRE::atmosphereRenderSettings));
+
+					toggleForceCloudRefresh(true);
+
+					g_takeoffState.state = TAKEOFF_ANIM_STARTED;
+
+					using func_getRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR*, RE::NiMatrix3*);
+					REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
+
+					getRotationMatrix(ship, &landedRot);
 				}
-
-				g_takeoffState.atmosphereForm = getPlanetAtmosphere(BobbyRE::BGSPlanet::Manager::GetSingleton()->char110);
-
-				g_takeoffState.originalStarVisibility             = g_takeoffState.atmosphereForm->settings.stars.staticVisibility;
-				g_takeoffState.originalDisableSimulatedVisibility = g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility;
-				g_takeoffState.originalAtmosphereTopRadius        = atmosphereSettings->atmosphereTopRadius;
-
-				memcpy(originalAtmosphereSettings, atmosphereSettings, sizeof(BobbyRE::atmosphereRenderSettings));
-
-				toggleForceCloudRefresh(true);
-
-				g_takeoffState.state = TAKEOFF_ANIM_STARTED;
-
-				using func_getRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR*, RE::NiMatrix3*);
-				REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
-
-				getRotationMatrix(ship, &landedRot);
 			}
 		}
 		return RE::BSEventNotifyControl::kContinue;
