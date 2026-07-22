@@ -554,8 +554,6 @@ namespace hooks
 
 	void *hook_unkFunc2(void* a1, RE::TESImageSpace::ImageSpaceSettings *settings)
 	{
-		//if (RE::TES::GetSingleton()->sky->mode == 1)
-		//	settings = g_spaceImageSpaceSettings;
 		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
 		{
 			if (!g_surfaceImageSpaceSettings)
