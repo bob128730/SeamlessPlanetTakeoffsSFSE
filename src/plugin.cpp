@@ -248,6 +248,26 @@ void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 
 }
 
+void toggleFrameDraw(bool enable) //kinda dumb but eh
+{
+	uintptr_t addr = REL::Relocation<uintptr_t>(REL::ID(143837)).address();
+	void* call = (void*)(addr + 0x79);
+
+	int8_t instruction[3];
+
+	if (enable)
+	{
+		int8_t callRax38[3] = { 0xFF, 0x50, 0x38 };
+		memcpy(instruction, callRax38, 3);
+	}
+	else {
+		int8_t nop[3] = { 0x90, 0x90, 0x90};
+		memcpy(instruction, nop, 3);
+	}
+
+	REL::WriteSafeData(call, instruction);
+}
+
 void toggleForceCloudRefresh(bool enable)
 {
 	REX::INFO("toggle force cloud refresh: {}", enable);
@@ -316,7 +336,7 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 	}
 };
 
-namespace hooks 
+namespace hooks
 {
 	using func_updateSpaceLocation_t = bool(uint32_t, BobbyRE::NiPoint4_double *, RE::NiMatrix3 *, double);
 	func_updateSpaceLocation_t* original_updateSpaceLocation;
@@ -406,113 +426,121 @@ namespace hooks
 	{
 		switch (g_takeoffState.state)
 		{
-			case NOT_STARTED:
+		case NOT_STARTED:
+		{
+			break;
+		}
+		case TAKEOFF_ANIM_STARTED:
+		{
+			if (g_takeoffState.prefadeTimer < 9.0)
 			{
-				break;
-			}
-			case TAKEOFF_ANIM_STARTED:
-			{
-				if (g_takeoffState.prefadeTimer < 9.0)
+				g_takeoffState.prefadeTimer += dt;
+				if (g_takeoffState.prefadeTimer > 9.0)
 				{
-					g_takeoffState.prefadeTimer += dt;
-					if (g_takeoffState.prefadeTimer > 9.0)
-					{
-						REX::INFO("fade start");
-						if (g_takeoffState.cloudForm)
-						{
-							REX::INFO("clouds detected");
-							g_takeoffState.originalLayers = g_takeoffState.cloudForm->layers;
-							g_takeoffState.originalPlanes = g_takeoffState.cloudForm->planes;
-						}
-						else
-							REX::INFO("No clouds");
-					}
-				}
-				else
-				{
-					fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.1f));
-					fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
-					fadeIndirectLighting(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
-					g_takeoffState.fadeTimer += dt;
-
-					//vanilla anim complete at around 4.9 seconds
-					if (g_takeoffState.fadeTimer > 5)
-					{
-						RE::TESObjectREFR* ship = player->GetSpaceship();
-						if (g_takeoffState.endAnimAngle == RE::NiPoint3{0.0, 0.0, 0.0})
-						{
-							g_takeoffState.endAnimAngle = ship->data.angle;
-							g_takeoffState.endAnimPos   = ship->data.location;
-						}
-
-						if(settings.TakeoffExtensionLength > 1.0)
-							extendTakeoffAnim(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
-					}
-					if (g_takeoffState.fadeTimer > 5 + settings.TakeoffExtensionLength)
-					{
-						g_takeoffState.state = TAKEOFF_LOAD_STARTED;
-						REX::INFO("fade complete");
-					}
-				}
-				break;
-			}
-			case TAKEOFF_LOAD_STARTED:
-			{
-				manualLoadSystem(player->GetSpaceship());
-				RE::TES::GetSingleton()->sky->mode = 0;
-				g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
-				break;
-			}
-			case TAKEOFF_LOAD_COMPLETE:
-			{
-				if (g_takeoffState.arrivalTimer < 0.3)
-				{
-					g_takeoffState.arrivalTimer += dt;
-					if (g_takeoffState.arrivalTimer > 0.3)
-					{
-						if (!spaceAtmosphereSettings)
-							spaceAtmosphereSettings = atmosphereSettings;
-
-						g_takeoffState.originalStarGlow = spaceAtmosphereSettings->surfaceRadius;
-						spaceAtmosphereSettings->surfaceRadius = 0;
-						RE::TES::GetSingleton()->sky->mode = 1;
-					}
-				}
-				else if (g_takeoffState.arrivalTimer > 0.3 && g_takeoffState.arrivalTimer < 2.5)
-				{
-					g_takeoffState.arrivalTimer += dt;
-					fadeStarGlow(g_takeoffState.arrivalTimer / 2.5);
-				}
-				else
-				{
-					REX::INFO("star glow fade complete");
-					g_takeoffState.state = NOT_STARTED;
-					g_takeoffState.prefadeTimer = 0.0;
-					g_takeoffState.fadeTimer = 0.0;
-					g_takeoffState.arrivalTimer = 0.0;
-
-					g_takeoffState.endAnimAngle = RE::NiPoint3{ 0.0, 0.0, 0.0 };
-					g_takeoffState.endAnimPos   = RE::NiPoint3{ 0.0, 0.0, 0.0 };
-
-					g_takeoffState.atmosphereForm->settings.stars.staticVisibility = g_takeoffState.originalStarVisibility;
-					g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = g_takeoffState.originalDisableSimulatedVisibility;
-
+					REX::INFO("fade start");
 					if (g_takeoffState.cloudForm)
 					{
-						g_takeoffState.cloudForm->layers = g_takeoffState.originalLayers;
-						g_takeoffState.cloudForm->planes = g_takeoffState.originalPlanes;
+						REX::INFO("clouds detected");
+						g_takeoffState.originalLayers = g_takeoffState.cloudForm->layers;
+						g_takeoffState.originalPlanes = g_takeoffState.cloudForm->planes;
 					}
-
-					if (g_surfaceImageSpaceSettings)
-					{
-						free((void *)g_surfaceImageSpaceSettings);
-						g_surfaceImageSpaceSettings = 0;
-					}
-
-					toggleForceCloudRefresh(false);
+					else
+						REX::INFO("No clouds");
 				}
-				break;
 			}
+			else
+			{
+				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.1f));
+				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
+				fadeIndirectLighting(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
+				g_takeoffState.fadeTimer += dt;
+
+				//vanilla anim complete at around 4.9 seconds
+				if (g_takeoffState.fadeTimer > 5)
+				{
+					RE::TESObjectREFR* ship = player->GetSpaceship();
+					if (g_takeoffState.endAnimAngle == RE::NiPoint3{0.0, 0.0, 0.0})
+					{
+						g_takeoffState.endAnimAngle = ship->data.angle;
+						g_takeoffState.endAnimPos   = ship->data.location;
+					}
+
+					if(settings.TakeoffExtensionLength > 1.0)
+						extendTakeoffAnim(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
+				}
+				if (g_takeoffState.fadeTimer > 5 + settings.TakeoffExtensionLength)
+				{
+					g_takeoffState.state = TAKEOFF_LOAD_STARTED;
+					REX::INFO("fade complete");
+				}
+			}
+			break;
+		}
+		case TAKEOFF_LOAD_STARTED:
+		{
+			toggleFrameDraw(false);
+			manualLoadSystem(player->GetSpaceship());
+			RE::TES::GetSingleton()->sky->mode = 0;
+			g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
+			break;
+		}
+		case TAKEOFF_LOAD_COMPLETE:
+		{
+			if (g_takeoffState.arrivalTimer < 0.05)
+			{
+				g_takeoffState.arrivalTimer += dt;
+				if (g_takeoffState.arrivalTimer > 0.05)
+					toggleFrameDraw(true);
+			}
+			else if (g_takeoffState.arrivalTimer < 0.3)
+			{
+				g_takeoffState.arrivalTimer += dt;
+				if (g_takeoffState.arrivalTimer > 0.3)
+				{
+					if (!spaceAtmosphereSettings)
+						spaceAtmosphereSettings = atmosphereSettings;
+
+					g_takeoffState.originalStarGlow = spaceAtmosphereSettings->surfaceRadius;
+					spaceAtmosphereSettings->surfaceRadius = 0;
+					RE::TES::GetSingleton()->sky->mode = 1;
+					REX::INFO("Star glow fade start");
+				}
+			}
+			else if (g_takeoffState.arrivalTimer < 2.5)
+			{
+				g_takeoffState.arrivalTimer += dt;
+				fadeStarGlow(g_takeoffState.arrivalTimer / 2.5);
+			}
+			else
+			{
+				REX::INFO("star glow fade complete");
+				g_takeoffState.state = NOT_STARTED;
+				g_takeoffState.prefadeTimer = 0.0;
+				g_takeoffState.fadeTimer = 0.0;
+				g_takeoffState.arrivalTimer = 0.0;
+
+				g_takeoffState.endAnimAngle = RE::NiPoint3{ 0.0, 0.0, 0.0 };
+				g_takeoffState.endAnimPos   = RE::NiPoint3{ 0.0, 0.0, 0.0 };
+
+				g_takeoffState.atmosphereForm->settings.stars.staticVisibility = g_takeoffState.originalStarVisibility;
+				g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = g_takeoffState.originalDisableSimulatedVisibility;
+
+				if (g_takeoffState.cloudForm)
+				{
+					g_takeoffState.cloudForm->layers = g_takeoffState.originalLayers;
+					g_takeoffState.cloudForm->planes = g_takeoffState.originalPlanes;
+				}
+
+				if (g_surfaceImageSpaceSettings)
+				{
+					free((void *)g_surfaceImageSpaceSettings);
+					g_surfaceImageSpaceSettings = 0;
+				}
+
+				toggleForceCloudRefresh(false);
+			}
+			break;
+		}
 		}
 		original_PCUpdate(player, dt);
 	}
@@ -555,7 +583,7 @@ namespace hooks
 		uintptr_t addr3 = REL::Relocation<uintptr_t>(REL::ID(57653)).address();
 		uintptr_t addr4 = REL::Relocation<uintptr_t>(REL::ID(128483)).address();
 		uintptr_t addr5 = REL::Relocation<uintptr_t>(REL::ID(99411)).address();
-		uintptr_t adde6 = REL::Relocation<uintptr_t>(REL::ID(99415)).address();
+		uintptr_t addr6 = REL::Relocation<uintptr_t>(REL::ID(99415)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
@@ -568,7 +596,7 @@ namespace hooks
 
 		uintptr_t unkFuncCall = addr4 + 0x14a;
 		uintptr_t PCUpdateCall = addr5 + 0xe2;
-		uintptr_t unkFunc2Call = adde6 + 0x350;
+		uintptr_t unkFunc2Call = addr6 + 0x350;
 
 		REL::Trampoline& tramp = REL::GetTrampoline();
 
