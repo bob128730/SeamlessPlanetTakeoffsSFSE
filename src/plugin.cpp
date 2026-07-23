@@ -12,6 +12,7 @@ BobbyRE::atmosphereRenderSettings* spaceAtmosphereSettings;
 
 RE::TESImageSpace::ImageSpaceSettings* g_spaceImageSpaceSettings;
 RE::TESImageSpace::ImageSpaceSettings* g_surfaceImageSpaceSettings;
+RE::TESImageSpace::ImageSpaceSettings* g_originalSurfaceImageSpaceSettings;
 
 enum TAKEOFF_STATE
 {
@@ -28,8 +29,7 @@ struct takeoffState
 	float arrivalTimer;
 	float originalStarGlow;
 	float originalStarVisibility;
-	float originalIndirectDiffuse;
-	float originalIndirectSpecular;
+	float blurValue;
 	bool originalDisableSimulatedVisibility;
 	RE::BGSAtmosphere* atmosphereForm;
 	float originalAtmosphereTopRadius;
@@ -216,14 +216,29 @@ void fadeAtmospherics(float t)
 	g_takeoffState.atmosphereForm->settings.stars.staticVisibility = lerp(g_takeoffState.originalStarVisibility, targetStarVisibility, t);
 }
 
-void fadeIndirectLighting(float t)
+void fadeImageSpaceSettings(float t)
 {
 	if (t > 1)
 		return;
 	if (g_surfaceImageSpaceSettings)
 	{
-		g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value = lerp(g_takeoffState.originalIndirectDiffuse, 0, t);
-		g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value = lerp(g_takeoffState.originalIndirectSpecular, 0, t);
+		g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value = 
+			lerp(g_originalSurfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value, 0, t);
+
+		g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value = 
+			lerp(g_originalSurfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value, 0, t);
+		
+		g_surfaceImageSpaceSettings->SunAndSky.SkyLightingMultiplier.value =
+			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.SkyLightingMultiplier.value, 0, t);
+
+//		g_surfaceImageSpaceSettings->SunAndSky.SpaceGlowBackgroundScaleOverride.value =
+//			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.SpaceGlowBackgroundScaleOverride.value, 25.0f, t);
+
+		g_surfaceImageSpaceSettings->SunAndSky.StarfieldStarBrightnessScaleOverride.value =
+			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.StarfieldStarBrightnessScaleOverride.value, 10.0f, t);
+
+		g_surfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value =
+			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value, 5.0f, t);
 	}
 }
 
@@ -232,6 +247,16 @@ void fadeStarGlow(float t)
 	float target = g_takeoffState.originalStarGlow;
 
 	spaceAtmosphereSettings->surfaceRadius = lerp(0, target, t);
+}
+
+void fadeBlur(float t, bool enable)
+{
+	if (t > 1 || !settings.EnableLoadBlur)
+		return;
+	if (enable)
+		g_takeoffState.blurValue = lerp(0.0, 5.0, t);
+	else
+		g_takeoffState.blurValue = lerp(5.0, 0.0, t);
 }
 
 void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
@@ -452,7 +477,7 @@ namespace hooks
 			{
 				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.1f));
 				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
-				fadeIndirectLighting(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
+				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
 				g_takeoffState.fadeTimer += dt;
 
 				//vanilla anim complete at around 4.9 seconds
@@ -468,6 +493,14 @@ namespace hooks
 					if(settings.TakeoffExtensionLength > 1.0)
 						extendTakeoffAnim(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
 				}
+
+				if (g_takeoffState.fadeTimer > (5 + settings.TakeoffExtensionLength - 0.5))
+				{
+					fadeBlur((g_takeoffState.fadeTimer - (5 + settings.TakeoffExtensionLength - 0.5)) 
+								/ 0.5
+								, true);
+				}
+
 				if (g_takeoffState.fadeTimer > 5 + settings.TakeoffExtensionLength)
 				{
 					g_takeoffState.state = TAKEOFF_LOAD_STARTED;
@@ -510,6 +543,7 @@ namespace hooks
 			{
 				g_takeoffState.arrivalTimer += dt;
 				fadeStarGlow(g_takeoffState.arrivalTimer / 2.5);
+				fadeBlur((g_takeoffState.arrivalTimer - 0.3) / 2.2, false);
 			}
 			else
 			{
@@ -561,17 +595,18 @@ namespace hooks
 				g_surfaceImageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings*)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
 				if (g_surfaceImageSpaceSettings)
 				{
-					memcpy(g_surfaceImageSpaceSettings, settings, sizeof(RE::TESImageSpace::ImageSpaceSettings));
-					g_takeoffState.originalIndirectDiffuse  = g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value;
-					g_takeoffState.originalIndirectSpecular = g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value;
+					*g_surfaceImageSpaceSettings = *settings;
+					*g_originalSurfaceImageSpaceSettings = *g_surfaceImageSpaceSettings;
 				}
 			}
 			else
 			{
-				settings->IndirectLighting.IndirectDiffuseMultiplier.value  = g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value;
-				settings->IndirectLighting.IndirectSpecularMultiplier.value = g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value;
+				*settings = *g_surfaceImageSpaceSettings;
 			}
 		}
+		if(g_takeoffState.state != NOT_STARTED)
+			settings->Blur.BlurRadiusValue.value = g_takeoffState.blurValue;
+
 		return original_unkFunc2(a1, settings);
 	}
 
@@ -616,6 +651,7 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		g_takeoffState = {};
 
 		originalAtmosphereSettings = (BobbyRE::atmosphereRenderSettings*)malloc(sizeof(BobbyRE::atmosphereRenderSettings));
+		g_originalSurfaceImageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings*)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
 
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
 		auto source = RE::Spaceship::TakeOffEvent::GetEventSource();
