@@ -261,8 +261,8 @@ void fadeBlur(float t, bool enable)
 
 void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 {
-	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.1;
-	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.1;
+	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.05;
+	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.05;
 	float targetPosZ   = g_takeoffState.endAnimPos.z + 30;
 
 	ship->data.angle.y = lerp(g_takeoffState.endAnimAngle.y, targetAngleY, t);
