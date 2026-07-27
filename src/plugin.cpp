@@ -7,7 +7,6 @@ RE::BGSLocation* newLocation;
 RE::NiMatrix3 takeoffRot;
 RE::NiMatrix3 landedRot;
 BobbyRE::atmosphereRenderSettings* atmosphereSettings;
-BobbyRE::atmosphereRenderSettings* originalAtmosphereSettings;
 BobbyRE::atmosphereRenderSettings* spaceAtmosphereSettings;
 
 RE::TESImageSpace::ImageSpaceSettings* g_spaceImageSpaceSettings;
@@ -314,6 +313,16 @@ void toggleForceCloudRefresh(bool enable)
 	REL::WriteSafeData(shouldRefresh, instruction);
 }
 
+BobbyRE::atmosphereRenderSettings* getAtmosphereSettings(int index)
+{
+	uintptr_t storageTable = *REL::Relocation<uintptr_t*>(REL::ID(837415)).get();
+	REX::INFO("storageTable: {}", storageTable);
+	// most beautiful code ever written
+	uint64_t base = *(uint64_t*)(storageTable + 272);
+	uint32_t idx = *(uint32_t*)(*(uint64_t*)(base + 64LL) + 4 * index);
+	return (BobbyRE::atmosphereRenderSettings*)(*(uint64_t*)(base + 968LL) + 192LL * (uint64_t)idx);
+}
+
 class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent> 
 {
 	using func_playerFastTravel_t = bool(RE::PlayerCharacter*, void*, RE::NiPoint3*, RE::TESObjectCELL*, bool, bool, bool, bool, uint16_t);
@@ -330,6 +339,7 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 				REX::INFO("State: {}", event.state);
 				if (event.state == 0)
 				{
+					atmosphereSettings = getAtmosphereSettings(0);
 					RE::Sky* sky = RE::TES::GetSingleton()->sky;
 					g_takeoffState.cloudForm = sky->currentWeather->clouds;
 					if (!g_takeoffState.cloudForm)
@@ -343,8 +353,6 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 					g_takeoffState.originalStarVisibility = g_takeoffState.atmosphereForm->settings.stars.staticVisibility;
 					g_takeoffState.originalDisableSimulatedVisibility = g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility;
 					g_takeoffState.originalAtmosphereTopRadius = atmosphereSettings->atmosphereTopRadius;
-
-					memcpy(originalAtmosphereSettings, atmosphereSettings, sizeof(BobbyRE::atmosphereRenderSettings));
 
 					toggleForceCloudRefresh(true);
 
@@ -530,8 +538,7 @@ namespace hooks
 				g_takeoffState.arrivalTimer += dt;
 				if (g_takeoffState.arrivalTimer > 0.3)
 				{
-					if (!spaceAtmosphereSettings)
-						spaceAtmosphereSettings = atmosphereSettings;
+					spaceAtmosphereSettings = getAtmosphereSettings(2);
 
 					g_takeoffState.originalStarGlow = spaceAtmosphereSettings->surfaceRadius;
 					spaceAtmosphereSettings->surfaceRadius = 0;
@@ -636,7 +643,7 @@ namespace hooks
 		//original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
 		original_setSpacePlanetOrbit = (func_setSpacePlanetOrbit_t*)tramp.write_call<5>(setSpacePlanetOrbitCall, hook_setSpacePlanetOrbit);
 		original_PCUpdate = (func_PCUpdate_t*)tramp.write_call<5>(PCUpdateCall, hook_PCUpdate);
-		original_unkFunc = (func_unkFunc_t*)tramp.write_call<5>(unkFuncCall, hook_unkFunc);
+		//original_unkFunc = (func_unkFunc_t*)tramp.write_call<5>(unkFuncCall, hook_unkFunc);
 		original_unkFunc2 = (func_unkFunc2_t*)tramp.write_call<5>(unkFunc2Call, hook_unkFunc2);
 	}
 
@@ -650,7 +657,6 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		settings.load();
 		g_takeoffState = {};
 
-		originalAtmosphereSettings = (BobbyRE::atmosphereRenderSettings*)malloc(sizeof(BobbyRE::atmosphereRenderSettings));
 		g_originalSurfaceImageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings*)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
 
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
