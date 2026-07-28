@@ -331,9 +331,9 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 	{
 		RE::TESObjectREFR* ship = event.ship.get();
 
-		if (g_takeoffState.state == NOT_STARTED) //npc ships send extra event?
+		if (RE::PlayerCharacter::GetSingleton()->GetSpaceship() == ship)
 		{
-			if (RE::PlayerCharacter::GetSingleton()->GetSpaceship() == ship)
+			if (g_takeoffState.state == NOT_STARTED) //npc ships send extra event?
 			{
 				REX::INFO("Player takeoff event");
 				REX::INFO("State: {}", event.state);
@@ -395,7 +395,7 @@ namespace hooks
 	{
 		void *result = original_setSpacePlanetOrbit(a1, DBInfo, a3, planetFormID, planetLocation, rot, pos, a8, a9);
 
-		if (g_takeoffState.state == TAKEOFF_LOAD_STARTED)
+		if (g_takeoffState.state == TAKEOFF_LOAD_STARTED || TAKEOFF_LOADING)
 		{
 			BobbyRE::BGSPlanet::Manager* planetManager = BobbyRE::BGSPlanet::Manager::GetSingleton();
 
@@ -608,7 +608,14 @@ namespace hooks
 			}
 			else
 			{
-				*settings = *g_surfaceImageSpaceSettings;
+				//causes crash sometimes?
+				//*settings = *g_surfaceImageSpaceSettings;
+
+				settings->IndirectLighting.IndirectDiffuseMultiplier.value = g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value;
+				settings->IndirectLighting.IndirectSpecularMultiplier.value = g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value;
+				settings->SunAndSky.SkyLightingMultiplier.value = g_surfaceImageSpaceSettings->SunAndSky.SkyLightingMultiplier.value;
+				settings->SunAndSky.StarfieldStarBrightnessScaleOverride.value = g_surfaceImageSpaceSettings->SunAndSky.StarfieldStarBrightnessScaleOverride.value;
+				settings->SunAndSky.StarfieldBackgroundScaleOverride.value = g_surfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value;
 			}
 		}
 		if(g_takeoffState.state != NOT_STARTED)
