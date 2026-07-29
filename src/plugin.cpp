@@ -363,10 +363,6 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 					using func_getRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR*, RE::NiMatrix3*);
 					REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
 
-					using func_forceActiveWeather_t = void(RE::Sky*, RE::BGSWeatherSettingsForm*, bool);
-					REL::Relocation<func_forceActiveWeather_t>forceActiveWeather{ REL::ID(69304) };
-
-					forceActiveWeather(sky, (RE::BGSWeatherSettingsForm*)RE::TESForm::LookupByID(0x2b07e), false);
 					getRotationMatrix(ship, &landedRot);
 				}
 			}
