@@ -13,6 +13,8 @@ RE::TESImageSpace::ImageSpaceSettings* g_spaceImageSpaceSettings;
 RE::TESImageSpace::ImageSpaceSettings* g_surfaceImageSpaceSettings;
 RE::TESImageSpace::ImageSpaceSettings* g_originalSurfaceImageSpaceSettings;
 
+BobbyRE::NiPoint4_double cachedPos;
+
 enum TAKEOFF_STATE
 {
 	NOT_STARTED,
@@ -371,7 +373,7 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 
 namespace hooks
 {
-	using func_updateSpaceLocation_t = bool(uint32_t, BobbyRE::NiPoint4_double *, RE::NiMatrix3 *, double);
+	using func_updateSpaceLocation_t = bool(uint32_t, BobbyRE::NiPoint4_double *, RE::NiMatrix3 *);
 	func_updateSpaceLocation_t* original_updateSpaceLocation;
 
 	using func_setSpacePlanetOrbit_t = void*(va_list, BobbyRE::DBInfo **, void *, uint32_t, double *, RE::NiMatrix3*, BobbyRE::NiPoint4_double*, uint32_t, bool);
@@ -380,23 +382,67 @@ namespace hooks
 	using func_PCUpdate_t = void(RE::PlayerCharacter *, float);
 	func_PCUpdate_t* original_PCUpdate;
 
-	using func_unkFunc_t = void(uintptr_t, void *, uint32_t);
-	func_unkFunc_t* original_unkFunc;
-
 	using func_unkFunc2_t = void*(void *, RE::TESImageSpace::ImageSpaceSettings*);
 	func_unkFunc2_t* original_unkFunc2;
 
-	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot, double a4)
+	uint32_t g_planetFormID;
+	BobbyRE::DBInfo** g_DBInfo;
+
+	using func_forEachRef_t = void*(void*, void *, bool);
+	func_forEachRef_t *original_forEachRef;
+
+	bool markedCell;
+
+	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot)
 	{
-		return original_updateSpaceLocation(objectFormID, pos, rot, a4);
+		if (g_takeoffState.state != NOT_STARTED && !markedCell)
+		{
+			REX::INFO("Moving space cell location");
+			BobbyRE::BGSPlanet::Manager* planetManager = BobbyRE::BGSPlanet::Manager::GetSingleton();
+
+			float lat = planetManager->tileLatitude;
+			float lon = planetManager->tileLongitude;
+
+			RE::NiPoint3 localUp(cos(lat) * cos(lon), cos(lat) * sin(lon), sin(lat));
+			RE::NiPoint3 localNorth(-sin(lat) * cos(lon), -sin(lat) * sin(lon), cos(lat));
+			RE::NiPoint3 localEast(-sin(lon), cos(lon), 0);
+
+			using func_getPlanetRadius_t = float(void**, uint32_t);
+			REL::Relocation<func_getPlanetRadius_t>getPlanetDiameter{ REL::ID(57552) };
+			void* componentDB = BobbyRE::BSService::JobSite::GetSingleton()->ComponentDB;
+
+			double radius = getPlanetDiameter(&componentDB, g_planetFormID) / 2;
+			BobbyRE::PlanetComponent* planetComponent = getPlanetComponent(g_planetFormID, *g_DBInfo);
+			RE::NiMatrix3 planetRot = planetComponent->rotation;
+
+			RE::NiPoint3 worldUp = planetRot.Transpose() * localUp;
+			RE::NiPoint3 worldNorth = planetRot.Transpose() * localNorth;
+			RE::NiPoint3 worldEast = planetRot.Transpose() * localEast;
+
+			double altitude = 2500000.0;
+			if (radius < 5000000)
+				altitude /= 500;
+
+			altitude *= 1.01;
+			pos->x = planetComponent->X + worldUp.x * (radius + altitude);
+			pos->y = planetComponent->Y + worldUp.y * (radius + altitude);
+			pos->z = planetComponent->Z + worldUp.z * (radius + altitude);
+		}
+		else
+		{
+			markedCell = false;
+		}
+		return original_updateSpaceLocation(objectFormID, pos, rot);
 	}
 
 	void* hook_setSpacePlanetOrbit(va_list a1, BobbyRE::DBInfo** DBInfo, void* a3, uint32_t planetFormID, double* planetLocation, RE::NiMatrix3* rot, BobbyRE::NiPoint4_double* pos, uint32_t a8, bool a9)
 	{
+		g_planetFormID = planetFormID;
+		g_DBInfo = DBInfo;
 		void *result = original_setSpacePlanetOrbit(a1, DBInfo, a3, planetFormID, planetLocation, rot, pos, a8, a9);
 
-		if (g_takeoffState.state == TAKEOFF_LOAD_STARTED || TAKEOFF_LOADING)
-		{
+		if (g_takeoffState.state == TAKEOFF_LOAD_STARTED)
+		{	
 			BobbyRE::BGSPlanet::Manager* planetManager = BobbyRE::BGSPlanet::Manager::GetSingleton();
 
 			float lat = planetManager->tileLatitude;
@@ -429,6 +475,8 @@ namespace hooks
 			pos->x = planetComponent->X + worldUp.x * (radius + altitude);
 			pos->y = planetComponent->Y + worldUp.y * (radius + altitude);
 			pos->z = planetComponent->Z + worldUp.z * (radius + altitude);
+
+			cachedPos = *pos;
 
 			REX::INFO("final pos: {}, {}, {}", pos->x, pos->y, pos->z);
 
@@ -586,11 +634,13 @@ namespace hooks
 		original_PCUpdate(player, dt);
 	}
 
-	void hook_unkFunc(uintptr_t a1, void* a2, uint32_t a3)
+	void *hook_forEachRef(void* a1, void* a2, bool a3)
 	{
-		original_unkFunc(a1, a2, a3);
-		uint64_t v14 = *(uint32_t*)(*(uint64_t *)(a1 + 712) + 4LL * a3);
-		atmosphereSettings = (BobbyRE::atmosphereRenderSettings*)(*(uint64_t*)(a1 + 968) + 192 * v14);
+		if (g_takeoffState.state != NOT_STARTED)
+		{
+			markedCell = true;
+		}
+		return original_forEachRef(a1, a2, a3);
 	}
 
 	void *hook_unkFunc2(void* a1, RE::TESImageSpace::ImageSpaceSettings *settings)
@@ -628,29 +678,38 @@ namespace hooks
 		uintptr_t addr1 = REL::Relocation<uintptr_t>(REL::ID(97772)).address();
 		uintptr_t addr2 = REL::Relocation<uintptr_t>(REL::ID(57659)).address();
 		uintptr_t addr3 = REL::Relocation<uintptr_t>(REL::ID(57653)).address();
-		uintptr_t addr4 = REL::Relocation<uintptr_t>(REL::ID(128483)).address();
+		uintptr_t addr4 = REL::Relocation<uintptr_t>(REL::ID(57659)).address();
 		uintptr_t addr5 = REL::Relocation<uintptr_t>(REL::ID(99411)).address();
 		uintptr_t addr6 = REL::Relocation<uintptr_t>(REL::ID(99415)).address();
+		uintptr_t addr7 = REL::Relocation<uintptr_t>(REL::ID(57653)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
+		uintptr_t updateSpaceLocationCall2;
 
 		uintptr_t setSpacePlanetOrbitCall;
 		if (SFSE::GetSFSEVersion() < 131408)
+		{
 			setSpacePlanetOrbitCall = addr3 + 0x89e;
+			updateSpaceLocationCall2 = addr7 + 0xaaa;
+		}
 		else
+		{
 			setSpacePlanetOrbitCall = addr3 + 0x8f3;
+			updateSpaceLocationCall2 = addr7 + 0xb0a;
+		}
 
-		uintptr_t unkFuncCall = addr4 + 0x14a;
+		uintptr_t forEachRefCall = addr4 + 0x2aa;
 		uintptr_t PCUpdateCall = addr5 + 0xe2;
 		uintptr_t unkFunc2Call = addr6 + 0x350;
 
 		REL::Trampoline& tramp = REL::GetTrampoline();
 
-		//original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
+		original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
+		tramp.write_call<5>(updateSpaceLocationCall2, hook_updateSpaceLocation);
 		original_setSpacePlanetOrbit = (func_setSpacePlanetOrbit_t*)tramp.write_call<5>(setSpacePlanetOrbitCall, hook_setSpacePlanetOrbit);
 		original_PCUpdate = (func_PCUpdate_t*)tramp.write_call<5>(PCUpdateCall, hook_PCUpdate);
-		//original_unkFunc = (func_unkFunc_t*)tramp.write_call<5>(unkFuncCall, hook_unkFunc);
+		original_forEachRef = (func_forEachRef_t*)tramp.write_call<5>(forEachRefCall, hook_forEachRef);
 		original_unkFunc2 = (func_unkFunc2_t*)tramp.write_call<5>(unkFunc2Call, hook_unkFunc2);
 	}
 
