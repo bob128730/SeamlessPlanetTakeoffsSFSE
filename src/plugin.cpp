@@ -31,12 +31,10 @@ struct takeoffState
 	float originalStarGlow;
 	float originalStarVisibility;
 	float blurValue;
+	float weatherPctOverride;
 	bool originalDisableSimulatedVisibility;
 	RE::BGSAtmosphere* atmosphereForm;
 	float originalAtmosphereTopRadius;
-	std::array<RE::BGSCloudForm::CloudLayer, 4> originalLayers;             
-	std::array<RE::BGSCloudForm::CloudPlane, 4> originalPlanes;
-	RE::BGSCloudForm *cloudForm;
 	RE::NiPoint3 endAnimAngle;
 	RE::NiPoint3 endAnimPos;
 };
@@ -184,25 +182,8 @@ void fadeWeather(float t)
 {
 	if (t > 1)
 		return;
-	RE::BGSVolumetricLighting* volumetrics = RE::TES::GetSingleton()->sky->currentWeather->volumetricLighting;
-	float target = 0;
 
-	volumetrics->settings.exterior.fogDensity.minFogDensity    = target;
-	volumetrics->settings.exterior.fogThickness.minFogThickness = target;
-
-	volumetrics->settings.exterior.fogThickness.maxFogThickness = lerp(volumetrics->settings.exterior.fogThickness.maxFogThickness, target, t);
-	volumetrics->settings.exterior.fogThickness.maxFogThickness = lerp(volumetrics->settings.exterior.fogThickness.maxFogThickness, target, t);
-
-	if (g_takeoffState.cloudForm)
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			g_takeoffState.cloudForm->layers[i].alphaAdd      = lerp(g_takeoffState.originalLayers[i].alphaAdd, target, t);
-			g_takeoffState.cloudForm->planes[i].alphaAdd      = lerp(g_takeoffState.originalPlanes[i].alphaAdd, target, t);
-			g_takeoffState.cloudForm->layers[i].alphaMultiply = lerp(g_takeoffState.originalLayers[i].alphaMultiply, target, t);
-			g_takeoffState.cloudForm->planes[i].alphaMultiply = lerp(g_takeoffState.originalPlanes[i].alphaMultiply, target, t);
-		}
-	}
+	g_takeoffState.weatherPctOverride = lerp(0.0, 1.0, t*t);
 }
 
 void fadeAtmospherics(float t)
@@ -343,25 +324,26 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 				{
 					atmosphereSettings = getAtmosphereSettings(0);
 					RE::Sky* sky = RE::TES::GetSingleton()->sky;
-					g_takeoffState.cloudForm = sky->currentWeather->clouds;
-					if (!g_takeoffState.cloudForm)
-					{
-						if (sky->lastWeather)
-							g_takeoffState.cloudForm = sky->lastWeather->clouds;
-					}
 
 					g_takeoffState.atmosphereForm = getPlanetAtmosphere(BobbyRE::BGSPlanet::Manager::GetSingleton()->char110);
 
 					g_takeoffState.originalStarVisibility = g_takeoffState.atmosphereForm->settings.stars.staticVisibility;
 					g_takeoffState.originalDisableSimulatedVisibility = g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility;
 					g_takeoffState.originalAtmosphereTopRadius = atmosphereSettings->atmosphereTopRadius;
-
-					toggleForceCloudRefresh(true);
+					g_takeoffState.weatherPctOverride = 0.0;
 
 					g_takeoffState.state = TAKEOFF_ANIM_STARTED;
 
 					using func_getRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR*, RE::NiMatrix3*);
 					REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
+
+					using func_setActiveWeather = void(RE::Sky *, RE::BGSWeatherSettingsForm *, bool, bool);
+					REL::Relocation<func_setActiveWeather>setActiveWeather{ REL::ID(69299) };
+					
+					if (sky->currentWeather != (RE::BGSWeatherSettingsForm*)RE::TESForm::LookupByID(0x3D2491)) //WeatherNone
+					{
+						setActiveWeather(sky, (RE::BGSWeatherSettingsForm *)RE::TESForm::LookupByID(0x2B07E), 0, 0); //clear weather
+					}
 
 					getRotationMatrix(ship, &landedRot);
 				}
@@ -385,11 +367,15 @@ namespace hooks
 	using func_unkFunc2_t = void*(void *, RE::TESImageSpace::ImageSpaceSettings*);
 	func_unkFunc2_t* original_unkFunc2;
 
-	uint32_t g_planetFormID;
-	BobbyRE::DBInfo** g_DBInfo;
+	using func_calcWeatherPct_t = float(RE::Sky *);
+	func_calcWeatherPct_t* original_calcWeatherPct;
 
 	using func_forEachRef_t = void*(void*, void *, bool);
 	func_forEachRef_t *original_forEachRef;
+
+	uint32_t g_planetFormID;
+	BobbyRE::DBInfo** g_DBInfo;
+
 
 	bool markedCell;
 
@@ -519,19 +505,11 @@ namespace hooks
 				if (g_takeoffState.prefadeTimer > 9.0)
 				{
 					REX::INFO("fade start");
-					if (g_takeoffState.cloudForm)
-					{
-						REX::INFO("clouds detected");
-						g_takeoffState.originalLayers = g_takeoffState.cloudForm->layers;
-						g_takeoffState.originalPlanes = g_takeoffState.cloudForm->planes;
-					}
-					else
-						REX::INFO("No clouds");
 				}
 			}
 			else
 			{
-				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.1f));
+				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.3f));
 				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
 				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
 				g_takeoffState.fadeTimer += dt;
@@ -588,6 +566,13 @@ namespace hooks
 				{
 					spaceAtmosphereSettings = getAtmosphereSettings(2);
 
+					if (spaceAtmosphereSettings->atmosphereHeight != 8000.0f)
+					{
+						spaceAtmosphereSettings = getAtmosphereSettings(1);
+						if (spaceAtmosphereSettings->atmosphereHeight != 8000.0f)
+							spaceAtmosphereSettings = getAtmosphereSettings(0);
+					}
+
 					g_takeoffState.originalStarGlow = spaceAtmosphereSettings->surfaceRadius;
 					spaceAtmosphereSettings->surfaceRadius = 0;
 					RE::TES::GetSingleton()->sky->mode = 1;
@@ -613,12 +598,6 @@ namespace hooks
 
 				g_takeoffState.atmosphereForm->settings.stars.staticVisibility = g_takeoffState.originalStarVisibility;
 				g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = g_takeoffState.originalDisableSimulatedVisibility;
-
-				if (g_takeoffState.cloudForm)
-				{
-					g_takeoffState.cloudForm->layers = g_takeoffState.originalLayers;
-					g_takeoffState.cloudForm->planes = g_takeoffState.originalPlanes;
-				}
 
 				if (g_surfaceImageSpaceSettings)
 				{
@@ -674,6 +653,13 @@ namespace hooks
 		return original_unkFunc2(a1, settings);
 	}
 
+	float hook_calcWeatherPct(RE::Sky* sky)
+	{
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED)
+			return g_takeoffState.weatherPctOverride;
+		return original_calcWeatherPct(sky);
+	}
+
 	void install() {
 		uintptr_t addr1 = REL::Relocation<uintptr_t>(REL::ID(97772)).address();
 		uintptr_t addr2 = REL::Relocation<uintptr_t>(REL::ID(57659)).address();
@@ -682,6 +668,7 @@ namespace hooks
 		uintptr_t addr5 = REL::Relocation<uintptr_t>(REL::ID(99411)).address();
 		uintptr_t addr6 = REL::Relocation<uintptr_t>(REL::ID(99415)).address();
 		uintptr_t addr7 = REL::Relocation<uintptr_t>(REL::ID(57653)).address();
+		uintptr_t addr8 = REL::Relocation<uintptr_t>(REL::ID(69308)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
@@ -702,11 +689,13 @@ namespace hooks
 		uintptr_t forEachRefCall = addr4 + 0x2aa;
 		uintptr_t PCUpdateCall = addr5 + 0xe2;
 		uintptr_t unkFunc2Call = addr6 + 0x350;
+		uintptr_t calcWeatherPctCall = addr8 + 0x242;
 
 		REL::Trampoline& tramp = REL::GetTrampoline();
 
 		original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
 		tramp.write_call<5>(updateSpaceLocationCall2, hook_updateSpaceLocation);
+		original_calcWeatherPct = (func_calcWeatherPct_t*)tramp.write_call<5>(calcWeatherPctCall, hook_calcWeatherPct);
 		original_setSpacePlanetOrbit = (func_setSpacePlanetOrbit_t*)tramp.write_call<5>(setSpacePlanetOrbitCall, hook_setSpacePlanetOrbit);
 		original_PCUpdate = (func_PCUpdate_t*)tramp.write_call<5>(PCUpdateCall, hook_PCUpdate);
 		original_forEachRef = (func_forEachRef_t*)tramp.write_call<5>(forEachRefCall, hook_forEachRef);
@@ -725,6 +714,7 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 
 		g_originalSurfaceImageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings*)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
 
+		REX::INFO("TES ptr: {}", (uintptr_t)RE::TES::GetSingleton());
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
 		auto source = RE::Spaceship::TakeOffEvent::GetEventSource();
 		source->RegisterSink(TakeOffSink);
