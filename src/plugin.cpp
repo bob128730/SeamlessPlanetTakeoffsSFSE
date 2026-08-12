@@ -300,7 +300,7 @@ void toggleForceCloudRefresh(bool enable)
 BobbyRE::atmosphereRenderSettings* getAtmosphereSettings(int index)
 {
 	uintptr_t storageTable = *REL::Relocation<uintptr_t*>(REL::ID(837415)).get();
-	REX::INFO("storageTable: {}", storageTable);
+
 	// most beautiful code ever written
 	uint64_t base = *(uint64_t*)(storageTable + 272);
 	uint32_t idx = *(uint32_t*)(*(uint64_t*)(base + 64LL) + 4 * index);
@@ -725,8 +725,6 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		g_takeoffState = {};
 
 		g_originalSurfaceImageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings*)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
-
-		REX::INFO("TES ptr: {}", (uintptr_t)RE::TES::GetSingleton());
 
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
 		auto source = RE::Spaceship::TakeOffEvent::GetEventSource();
