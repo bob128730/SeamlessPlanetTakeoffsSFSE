@@ -14,6 +14,7 @@ RE::TESImageSpace::ImageSpaceSettings* g_surfaceImageSpaceSettings;
 RE::TESImageSpace::ImageSpaceSettings* g_originalSurfaceImageSpaceSettings;
 
 BobbyRE::NiPoint4_double cachedPos;
+int g_index;
 
 enum TAKEOFF_STATE
 {
@@ -366,6 +367,9 @@ namespace hooks
 	using func_PCUpdate_t = void(RE::PlayerCharacter *, float);
 	func_PCUpdate_t* original_PCUpdate;
 
+	using func_unkFunc_t = bool(int*);
+	func_unkFunc_t* original_unkFunc;
+
 	using func_unkFunc2_t = void*(void *, RE::TESImageSpace::ImageSpaceSettings*);
 	func_unkFunc2_t* original_unkFunc2;
 
@@ -566,7 +570,7 @@ namespace hooks
 				g_takeoffState.arrivalTimer += dt;
 				if (g_takeoffState.arrivalTimer > 0.3)
 				{
-					spaceAtmosphereSettings = getAtmosphereSettings(2);
+					spaceAtmosphereSettings = getAtmosphereSettings(g_index);
 
 					g_takeoffState.originalStarGlow = spaceAtmosphereSettings->surfaceRadius;
 					spaceAtmosphereSettings->surfaceRadius = 0;
@@ -621,6 +625,12 @@ namespace hooks
 		return original_forEachRef(a1, a2, a3);
 	}
 
+	bool hook_unkFunc(int* a1)
+	{
+		g_index = *a1 & 0xFFFFFF;
+		return original_unkFunc(a1);
+	}
+
 	void *hook_unkFunc2(void* a1, RE::TESImageSpace::ImageSpaceSettings *settings)
 	{
 		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
@@ -668,6 +678,7 @@ namespace hooks
 		uintptr_t addr6 = REL::Relocation<uintptr_t>(REL::ID(99415)).address();
 		uintptr_t addr7 = REL::Relocation<uintptr_t>(REL::ID(57653)).address();
 		uintptr_t addr8 = REL::Relocation<uintptr_t>(REL::ID(69308)).address();
+		uintptr_t addr9 = REL::Relocation<uintptr_t>(REL::ID(144186)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
@@ -687,6 +698,7 @@ namespace hooks
 
 		uintptr_t forEachRefCall = addr4 + 0x2aa;
 		uintptr_t PCUpdateCall = addr5 + 0xe2;
+		uintptr_t unkFuncCall = addr9 + 0x2e;
 		uintptr_t unkFunc2Call = addr6 + 0x350;
 		uintptr_t calcWeatherPctCall = addr8 + 0x242;
 
@@ -698,6 +710,7 @@ namespace hooks
 		original_setSpacePlanetOrbit = (func_setSpacePlanetOrbit_t*)tramp.write_call<5>(setSpacePlanetOrbitCall, hook_setSpacePlanetOrbit);
 		original_PCUpdate = (func_PCUpdate_t*)tramp.write_call<5>(PCUpdateCall, hook_PCUpdate);
 		original_forEachRef = (func_forEachRef_t*)tramp.write_call<5>(forEachRefCall, hook_forEachRef);
+		original_unkFunc = (func_unkFunc_t*)tramp.write_call<5>(unkFuncCall, hook_unkFunc);
 		original_unkFunc2 = (func_unkFunc2_t*)tramp.write_call<5>(unkFunc2Call, hook_unkFunc2);
 	}
 
