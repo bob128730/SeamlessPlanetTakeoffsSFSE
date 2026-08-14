@@ -184,7 +184,7 @@ void fadeWeather(float t)
 	if (t > 1)
 		return;
 
-	g_takeoffState.weatherPctOverride = lerp(0.0, 1.0, t*t);
+	g_takeoffState.weatherPctOverride = lerp(0.0, 1.0, t);
 }
 
 void fadeAtmospherics(float t)
@@ -237,9 +237,9 @@ void fadeBlur(float t, bool enable)
 	if (t > 1 || !settings.EnableLoadBlur)
 		return;
 	if (enable)
-		g_takeoffState.blurValue = lerp(0.0, 5.0, t);
+		g_takeoffState.blurValue = lerp(0.0, 0.7, t);
 	else
-		g_takeoffState.blurValue = lerp(5.0, 0.0, t);
+		g_takeoffState.blurValue = lerp(0.7, 0.0, t);
 }
 
 void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
@@ -515,7 +515,7 @@ namespace hooks
 			}
 			else
 			{
-				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.3f));
+				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.5f));
 				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
 				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
 				g_takeoffState.fadeTimer += dt;
