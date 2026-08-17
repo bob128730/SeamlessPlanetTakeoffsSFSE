@@ -415,7 +415,9 @@ namespace hooks
 			if (radius < 5000000)
 				altitude /= 500;
 
-			altitude *= 1.01;
+			// This causes crash for some reason?
+			//altitude *= 1.01;
+
 			pos->x = planetComponent->X + worldUp.x * (radius + altitude);
 			pos->y = planetComponent->Y + worldUp.y * (radius + altitude);
 			pos->z = planetComponent->Z + worldUp.z * (radius + altitude);
@@ -633,7 +635,7 @@ namespace hooks
 
 	void *hook_unkFunc2(void* a1, RE::TESImageSpace::ImageSpaceSettings *settings)
 	{
-		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED)
 		{
 			if (!g_surfaceImageSpaceSettings)
 			{
@@ -656,7 +658,7 @@ namespace hooks
 				settings->SunAndSky.StarfieldBackgroundScaleOverride.value = g_surfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value;
 			}
 		}
-		if(g_takeoffState.state != NOT_STARTED)
+		if(g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_COMPLETE)
 			settings->Blur.BlurRadiusValue.value = g_takeoffState.blurValue;
 
 		return original_unkFunc2(a1, settings);
