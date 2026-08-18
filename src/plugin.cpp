@@ -635,7 +635,7 @@ namespace hooks
 				settings->SunAndSky.StarfieldBackgroundScaleOverride.value = g_surfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value;
 			}
 		}
-		if(g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_COMPLETE)
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || (g_takeoffState.state == TAKEOFF_LOAD_COMPLETE && g_takeoffState.arrivalTimer > 0.05))
 			settings->Blur.BlurRadiusValue.value = g_takeoffState.blurValue;
 
 		return original_unkFunc2(a1, settings);
