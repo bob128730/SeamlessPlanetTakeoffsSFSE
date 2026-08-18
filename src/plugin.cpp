@@ -276,27 +276,6 @@ void toggleFrameDraw(bool enable) //kinda dumb but eh
 	REL::WriteSafeData(call, instruction);
 }
 
-void toggleForceCloudRefresh(bool enable)
-{
-	REX::INFO("toggle force cloud refresh: {}", enable);
-	uintptr_t addr = REL::Relocation<uintptr_t>(REL::ID(69241)).address();
-	void* shouldRefresh = (void*)(addr + 0x49);
-
-	int8_t instruction[6];
-
-	if (enable)
-	{
-		int8_t nop[6] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
-		memcpy(instruction, nop, 6);
-	}
-	else {
-		int8_t jz[6] = { 0x0F, 0x84, 0x60, 0x06, 0x00, 0x00 };
-		memcpy(instruction, jz, 6);
-	}
-
-	REL::WriteSafeData(shouldRefresh, instruction);
-}
-
 BobbyRE::atmosphereRenderSettings* getAtmosphereSettings(int index)
 {
 	uintptr_t storageTable = *REL::Relocation<uintptr_t*>(REL::ID(837415)).get();
@@ -609,8 +588,6 @@ namespace hooks
 					free((void *)g_surfaceImageSpaceSettings);
 					g_surfaceImageSpaceSettings = 0;
 				}
-
-				toggleForceCloudRefresh(false);
 			}
 			break;
 		}
