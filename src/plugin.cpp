@@ -120,6 +120,11 @@ void manualLoadSystem(RE::TESObjectREFR* ship)
 
 		unkfunc4(v206, 4, v207);
 	}
+
+	using func_setShipFreeLook_t = void(RE::PlayerCamera *, bool);
+	REL::Relocation<func_setShipFreeLook_t>setShipFreeLook{ REL::ID(113437) };
+
+	setShipFreeLook(RE::PlayerCamera::GetSingleton(), false);
 }
 
 template <typename componentType> componentType *getComponent(BobbyRE::DBLookupContext* ctx)
@@ -306,8 +311,6 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 					{
 						setActiveWeather(sky, (RE::BGSWeatherSettingsForm *)RE::TESForm::LookupByID(0x2B07E), 0, 0); //clear weather
 					}
-					
-					a_source->RegisterSink(RE::PlayerCamera::GetSingleton());
 
 					getRotationMatrix(ship, &landedRot);
 				}
@@ -549,10 +552,6 @@ namespace hooks
 					spaceAtmosphereSettings->surfaceRadius = 0;
 					RE::TES::GetSingleton()->sky->mode = 1;
 					REX::INFO("Star glow fade start");
-
-					auto source = RE::Spaceship::TakeOffEvent::GetEventSource();
-					source->UnregisterSink(RE::PlayerCamera::GetSingleton());
-
 				}
 			}
 			else if (g_takeoffState.arrivalTimer < 2.5)
@@ -705,7 +704,6 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
 		auto source = RE::Spaceship::TakeOffEvent::GetEventSource();
 		source->RegisterSink(TakeOffSink);
-		source->UnregisterSink(RE::PlayerCamera::GetSingleton());
 
 		//stop normal loading
 		uintptr_t initiateTakeOffCompleted = REL::Relocation<uintptr_t>(REL::ID(119911)).address();
