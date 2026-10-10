@@ -16,6 +16,8 @@ RE::TESImageSpace::ImageSpaceSettings* g_originalSurfaceImageSpaceSettings;
 BobbyRE::NiPoint4_double cachedPos;
 int g_index;
 
+bool g_frameDraw = true;
+
 enum TAKEOFF_STATE
 {
 	NOT_STARTED,
@@ -256,26 +258,6 @@ void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 
 }
 
-void toggleFrameDraw(bool enable) //kinda dumb but eh
-{
-	uintptr_t addr = REL::Relocation<uintptr_t>(REL::ID(143837)).address();
-	void* call = (void*)(addr + 0x79);
-
-	int8_t instruction[3];
-
-	if (enable)
-	{
-		int8_t callRax38[3] = { 0xFF, 0x50, 0x38 };
-		memcpy(instruction, callRax38, 3);
-	}
-	else {
-		int8_t nop[3] = { 0x90, 0x90, 0x90};
-		memcpy(instruction, nop, 3);
-	}
-
-	REL::WriteSafeData(call, instruction);
-}
-
 BobbyRE::atmosphereRenderSettings* getAtmosphereSettings(int index)
 {
 	uintptr_t storageTable = *REL::Relocation<uintptr_t*>(REL::ID(837415)).get();
@@ -358,11 +340,21 @@ namespace hooks
 	using func_forEachRef_t = void*(void*, void *, bool);
 	func_forEachRef_t *original_forEachRef;
 
+	using func_endFrame_t = void(uintptr_t, void*);
+	func_endFrame_t* original_endFrame;
+
 	uint32_t g_planetFormID;
 	BobbyRE::DBInfo** g_DBInfo;
 
-
 	bool markedCell;
+
+	void hook_endFrame(uintptr_t execList, void* waitHandler)
+	{
+		if (!g_frameDraw)
+			*(uint32_t*)(execList + 0x210) = 0;
+
+		original_endFrame(execList, waitHandler);
+	}
 
 	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot)
 	{
@@ -532,7 +524,7 @@ namespace hooks
 		}
 		case TAKEOFF_LOAD_STARTED:
 		{
-			toggleFrameDraw(false);
+			g_frameDraw = false;
 			manualLoadSystem(player->GetSpaceship());
 			RE::TES::GetSingleton()->sky->mode = 0;
 			g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
@@ -544,7 +536,7 @@ namespace hooks
 			{
 				g_takeoffState.arrivalTimer += dt;
 				if (g_takeoffState.arrivalTimer > 0.05)
-					toggleFrameDraw(true);
+					g_frameDraw = true;
 			}
 			else if (g_takeoffState.arrivalTimer < 0.3)
 			{
@@ -612,7 +604,7 @@ namespace hooks
 
 	void *hook_unkFunc2(void* a1, RE::TESImageSpace::ImageSpaceSettings *settings)
 	{
-		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED)
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
 		{
 			if (!g_surfaceImageSpaceSettings)
 			{
@@ -635,7 +627,7 @@ namespace hooks
 				settings->SunAndSky.StarfieldBackgroundScaleOverride.value = g_surfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value;
 			}
 		}
-		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || (g_takeoffState.state == TAKEOFF_LOAD_COMPLETE && g_takeoffState.arrivalTimer > 0.05))
+		if (g_takeoffState.state != NOT_STARTED)
 			settings->Blur.BlurRadiusValue.value = g_takeoffState.blurValue;
 
 		return original_unkFunc2(a1, settings);
@@ -658,6 +650,7 @@ namespace hooks
 		uintptr_t addr7 = REL::Relocation<uintptr_t>(REL::ID(57653)).address();
 		uintptr_t addr8 = REL::Relocation<uintptr_t>(REL::ID(69308)).address();
 		uintptr_t addr9 = REL::Relocation<uintptr_t>(REL::ID(144186)).address();
+		uintptr_t addr10 = REL::Relocation<uintptr_t>(REL::ID(99417)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
@@ -681,6 +674,8 @@ namespace hooks
 		uintptr_t unkFunc2Call = addr6 + 0x350;
 		uintptr_t calcWeatherPctCall = addr8 + 0x242;
 
+		uintptr_t endFrameCall = addr10 + 0x2DE;
+
 		REL::Trampoline& tramp = REL::GetTrampoline();
 
 		original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
@@ -691,6 +686,8 @@ namespace hooks
 		original_forEachRef = (func_forEachRef_t*)tramp.write_call<5>(forEachRefCall, hook_forEachRef);
 		original_unkFunc = (func_unkFunc_t*)tramp.write_call<5>(unkFuncCall, hook_unkFunc);
 		original_unkFunc2 = (func_unkFunc2_t*)tramp.write_call<5>(unkFunc2Call, hook_unkFunc2);
+		original_endFrame = (func_endFrame_t*)tramp.write_call<5>(endFrameCall, hook_endFrame);
+
 	}
 
 }
