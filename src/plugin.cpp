@@ -1,5 +1,7 @@
 #include "BobbyRE/BobbyRE.h"
 #include "config.h"
+#include "plugin.h"
+#include "transition.h"
 
 config settings;
 RE::BGSLocation* prevLocation;
@@ -17,32 +19,6 @@ BobbyRE::NiPoint4_double cachedPos;
 int g_index;
 
 bool g_frameDraw = true;
-
-enum TAKEOFF_STATE
-{
-	NOT_STARTED,
-	TAKEOFF_ANIM_STARTED,
-	TAKEOFF_LOAD_STARTED,
-	TAKEOFF_LOAD_COMPLETE
-};
-struct takeoffState
-{
-	TAKEOFF_STATE state;
-	float prefadeTimer;
-	float fadeTimer;
-	float arrivalTimer;
-	float originalStarGlow;
-	float originalStarVisibility;
-	float blurValue;
-	float weatherPctOverride;
-	bool originalDisableSimulatedVisibility;
-	RE::BGSAtmosphere* atmosphereForm;
-	float originalAtmosphereTopRadius;
-	RE::NiPoint3 endAnimAngle;
-	RE::NiPoint3 endAnimPos;
-	RE::NiPoint3 endFwd;
-	float cloudDrop;
-};
 
 takeoffState g_takeoffState;
 
@@ -139,78 +115,6 @@ RE::BGSAtmosphere* getPlanetAtmosphere(void* a1)
 	REL::Relocation<func_getAtmosphere_t>getAtmosphere{ REL::ID(51351) };
 
 	return getAtmosphere(a1);
-}
-
-float lerp(float a, float b, float t)
-{
-	return a + (b - a) * t;
-}
-
-void fadeWeather(float t)
-{
-	if (t > 1)
-		return;
-
-	g_takeoffState.weatherPctOverride = lerp(0.0, 1.0, t);
-}
-
-void fadeClouds(float t)
-{
-	g_takeoffState.cloudDrop = lerp(0, 2500, t);
-}
-void fadeAtmospherics(float t)
-{
-	if (t > 1)
-		return;
-	float targetAtmo           = atmosphereSettings->surfaceRadius + 100.0;
-	float targetStarVisibility = 1.0;
-	g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = 1;
-
-	atmosphereSettings->atmosphereTopRadius                        = lerp(g_takeoffState.originalAtmosphereTopRadius, targetAtmo, 1 - pow(1 - t, 3));
-	g_takeoffState.atmosphereForm->settings.stars.staticVisibility = lerp(g_takeoffState.originalStarVisibility, targetStarVisibility, t);
-}
-
-void fadeImageSpaceSettings(float t)
-{
-	if (t > 1)
-		return;
-	if (g_surfaceImageSpaceSettings)
-	{
-		g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value = 
-			lerp(g_originalSurfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value, 0, t);
-
-		g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value = 
-			lerp(g_originalSurfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value, 0, t);
-		
-		g_surfaceImageSpaceSettings->SunAndSky.SkyLightingMultiplier.value =
-			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.SkyLightingMultiplier.value, 0, t);
-
-//		g_surfaceImageSpaceSettings->SunAndSky.SpaceGlowBackgroundScaleOverride.value =
-//			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.SpaceGlowBackgroundScaleOverride.value, 25.0f, t);
-
-		g_surfaceImageSpaceSettings->SunAndSky.StarfieldStarBrightnessScaleOverride.value =
-			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.StarfieldStarBrightnessScaleOverride.value, 10.0f, t);
-
-		g_surfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value =
-			lerp(g_originalSurfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value, 5.0f, t);
-	}
-}
-
-void fadeStarGlow(float t)
-{
-	float target = g_takeoffState.originalStarGlow;
-
-	spaceAtmosphereSettings->surfaceRadius = lerp(0, target, t);
-}
-
-void fadeBlur(float t, bool enable)
-{
-	if (t > 1 || !settings.EnableLoadBlur)
-		return;
-	if (enable)
-		g_takeoffState.blurValue = lerp(0.0, 0.7, t);
-	else
-		g_takeoffState.blurValue = lerp(0.7, 0.0, t);
 }
 
 void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
@@ -423,9 +327,11 @@ namespace hooks
 			}
 			else
 			{
-				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.9f));
+				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.9f), &g_takeoffState);
 				//fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
-				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
+				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17), 
+					g_surfaceImageSpaceSettings, g_originalSurfaceImageSpaceSettings);
+
 				g_takeoffState.fadeTimer += dt;
 
 				//vanilla anim complete at around 4.9 seconds
@@ -447,11 +353,11 @@ namespace hooks
 						extendTakeoffAnim(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
 				}
 
-				if (g_takeoffState.fadeTimer > (5 + settings.TakeoffExtensionLength - 0.5))
+				if (g_takeoffState.fadeTimer > (5 + settings.TakeoffExtensionLength - 0.5) && settings.EnableLoadBlur)
 				{
 					fadeBlur((g_takeoffState.fadeTimer - (5 + settings.TakeoffExtensionLength - 0.5)) 
 								/ 0.5
-								, true);
+								, true, &g_takeoffState);
 				}
 
 				if (g_takeoffState.fadeTimer > 5 + settings.TakeoffExtensionLength)
@@ -494,8 +400,9 @@ namespace hooks
 			else if (g_takeoffState.arrivalTimer < 2.5)
 			{
 				g_takeoffState.arrivalTimer += dt;
-				fadeStarGlow(g_takeoffState.arrivalTimer / 2.5);
-				fadeBlur((g_takeoffState.arrivalTimer - 0.3) / 2.2, false);
+				fadeStarGlow(g_takeoffState.arrivalTimer / 2.5, &g_takeoffState, spaceAtmosphereSettings);
+				if(settings.EnableLoadBlur)
+					fadeBlur((g_takeoffState.arrivalTimer - 0.3) / 2.2, false, &g_takeoffState);
 			}
 			else
 			{
