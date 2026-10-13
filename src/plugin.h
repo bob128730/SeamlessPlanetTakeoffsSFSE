@@ -27,4 +27,5 @@ struct takeoffState
 	RE::NiPoint3 endAnimPos;
 	RE::NiPoint3 endFwd;
 	float cloudDrop;
+	float issT;
 };

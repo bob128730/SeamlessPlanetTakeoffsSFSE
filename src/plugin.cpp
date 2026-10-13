@@ -66,8 +66,6 @@ void manualLoadSystem(RE::TESObjectREFR* ship)
 
 		BobbyRE::unkfunc4(v206, 4, v207);
 	}
-
-	BobbyRE::PlayerCamera::SetShipFreeLook(RE::PlayerCamera::GetSingleton(), false);
 }
 
 template <typename componentType> componentType *getComponent(BobbyRE::DBLookupContext* ctx)
@@ -121,14 +119,13 @@ void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 {
 	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.05;
 	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.05;
-	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 1000;
-	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 3000;
-
+	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 10000;
+	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 30000;
 
 	ship->data.angle.y = lerp(g_takeoffState.endAnimAngle.y, targetAngleY, t);
 	ship->data.angle.z = lerp(g_takeoffState.endAnimAngle.z, targetAngleZ, t);
 
-	float e = t * t * (3.0f - 2.0f * t);
+	float e = powf(t, 4);
 	RE::NiPoint3 pos = g_takeoffState.endAnimPos
 		+ g_takeoffState.endFwd * (targetPosFwd * e) + RE::NiPoint3(0, 0, targetPosZ * e);
 
@@ -178,12 +175,17 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 
 					g_takeoffState.state = TAKEOFF_ANIM_STARTED;
 					
+				//	BobbyRE::PlayerCamera::SetShipFreeLook(RE::PlayerCamera::GetSingleton(), false);
+
 					if (sky->currentWeather != (RE::BGSWeatherSettingsForm*)RE::TESForm::LookupByID(0x3D2491)) //WeatherNone
 					{
 						BobbyRE::Sky::SetActiveWeather(sky, (RE::BGSWeatherSettingsForm *)RE::TESForm::LookupByID(0x2B07E), 0, 0); //clear weather
 					}
 
 					BobbyRE::TESObjectREFR::GetRotationMatrix(ship, &landedRot);
+
+					RE::TESObjectCELL* GalaxyCell = (RE::TESObjectCELL*)RE::TESObjectCELL::LookupByID(0x18343);
+					g_spaceImageSpaceSettings = BobbyRE::TESObjectCELL::GetIss(GalaxyCell);
 				}
 			}
 		}
@@ -328,9 +330,9 @@ namespace hooks
 			else
 			{
 				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.9f), &g_takeoffState);
-				//fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
-				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17), 
-					g_surfaceImageSpaceSettings, g_originalSurfaceImageSpaceSettings);
+				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength), &g_takeoffState, atmosphereSettings);
+
+				g_takeoffState.issT = g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength);
 
 				g_takeoffState.fadeTimer += dt;
 
@@ -461,14 +463,7 @@ namespace hooks
 			}
 			else
 			{
-				//causes crash sometimes?
-				//*settings = *g_surfaceImageSpaceSettings;
-
-				settings->IndirectLighting.IndirectDiffuseMultiplier.value = g_surfaceImageSpaceSettings->IndirectLighting.IndirectDiffuseMultiplier.value;
-				settings->IndirectLighting.IndirectSpecularMultiplier.value = g_surfaceImageSpaceSettings->IndirectLighting.IndirectSpecularMultiplier.value;
-				settings->SunAndSky.SkyLightingMultiplier.value = g_surfaceImageSpaceSettings->SunAndSky.SkyLightingMultiplier.value;
-				settings->SunAndSky.StarfieldStarBrightnessScaleOverride.value = g_surfaceImageSpaceSettings->SunAndSky.StarfieldStarBrightnessScaleOverride.value;
-				settings->SunAndSky.StarfieldBackgroundScaleOverride.value = g_surfaceImageSpaceSettings->SunAndSky.StarfieldBackgroundScaleOverride.value;
+				BobbyRE::IssLerp(settings, settings, g_spaceImageSpaceSettings, g_takeoffState.issT);
 			}
 		}
 		if (g_takeoffState.state != NOT_STARTED)

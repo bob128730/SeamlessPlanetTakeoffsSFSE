@@ -26,6 +26,9 @@ namespace BobbyRE
 
 		using func_AddReference_t = double(RE::TESObjectCELL*, RE::TESObjectREFR*, bool, bool);
 		REL::Relocation<func_AddReference_t>AddReference{ REL::ID(63034) };
+
+		using func_GetIss_t = RE::TESImageSpace::ImageSpaceSettings*(RE::TESObjectCELL*);
+		REL::Relocation<func_GetIss_t>GetIss{ REL::ID(62677) };
 	}
 
 	namespace TES
@@ -252,6 +255,9 @@ namespace BobbyRE
 
 	using func_GetPlayerSystemPos_t = bool(double *, float *);
 	REL::Relocation<func_GetPlayerSystemPos_t>GetPlayerSystemPos{ REL::ID(52189) };
+
+	using func_IssLerp_t = void(RE::TESImageSpace::ImageSpaceSettings *, RE::TESImageSpace::ImageSpaceSettings*, RE::TESImageSpace::ImageSpaceSettings*, float);
+	REL::Relocation<func_IssLerp_t>IssLerp{ REL::ID(127271) };
 }
 
 namespace hooks
