@@ -249,6 +249,9 @@ namespace BobbyRE
 
 	using func_unkfunc4_t = void* (void*, uint32_t, void*);
 	REL::Relocation<func_unkfunc4_t>unkfunc4{ REL::ID(72962) };
+
+	using func_GetPlayerSystemPos_t = bool(double *, float *);
+	REL::Relocation<func_GetPlayerSystemPos_t>GetPlayerSystemPos{ REL::ID(52189) };
 }
 
 namespace hooks

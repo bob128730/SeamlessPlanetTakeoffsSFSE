@@ -302,37 +302,14 @@ namespace hooks
 		if (g_takeoffState.state != NOT_STARTED && !markedCell)
 		{
 			REX::INFO("Moving space cell location");
-			BobbyRE::BGSPlanet::Manager* planetManager = BobbyRE::BGSPlanet::Manager::GetSingleton();
 
-			float lat = planetManager->tileLatitude;
-			float lon = planetManager->tileLongitude;
+			double newPos[4];
+			float newRot[3];
+			BobbyRE::GetPlayerSystemPos(newPos, newRot);
 
-			RE::NiPoint3 localUp(cos(lat) * cos(lon), cos(lat) * sin(lon), sin(lat));
-			RE::NiPoint3 localNorth(-sin(lat) * cos(lon), -sin(lat) * sin(lon), cos(lat));
-			RE::NiPoint3 localEast(-sin(lon), cos(lon), 0);
-
-			using func_getPlanetRadius_t = float(void**, uint32_t);
-			REL::Relocation<func_getPlanetRadius_t>getPlanetDiameter{ REL::ID(57552) };
-			void* componentDB = BobbyRE::BSService::JobSite::GetSingleton()->ComponentDB;
-
-			double radius = getPlanetDiameter(&componentDB, g_planetFormID) / 2;
-			BobbyRE::PlanetComponent* planetComponent = getPlanetComponent(g_planetFormID, *g_DBInfo);
-			RE::NiMatrix3 planetRot = planetComponent->rotation;
-
-			RE::NiPoint3 worldUp = planetRot.Transpose() * localUp;
-			RE::NiPoint3 worldNorth = planetRot.Transpose() * localNorth;
-			RE::NiPoint3 worldEast = planetRot.Transpose() * localEast;
-
-			double altitude = 2500000.0;
-			if (radius < 5000000)
-				altitude /= 500;
-
-			// This causes crash for some reason?
-			//altitude *= 1.01;
-
-			pos->x = planetComponent->X + worldUp.x * (radius + altitude);
-			pos->y = planetComponent->Y + worldUp.y * (radius + altitude);
-			pos->z = planetComponent->Z + worldUp.z * (radius + altitude);
+			pos->x = newPos[0];
+			pos->y = newPos[1];
+			pos->z = newPos[2];
 		}
 		else
 		{
@@ -358,11 +335,6 @@ namespace hooks
 			RE::NiPoint3 localNorth(-sin(lat) * cos(lon), -sin(lat) * sin(lon), cos(lat));
 			RE::NiPoint3 localEast(-sin(lon), cos(lon), 0);
 
-			using func_getPlanetRadius_t = float(void**, uint32_t);
-			REL::Relocation<func_getPlanetRadius_t>getPlanetDiameter{ REL::ID(57552) };
-			void* componentDB = BobbyRE::BSService::JobSite::GetSingleton()->ComponentDB;
-
-			double radius = getPlanetDiameter(&componentDB, planetFormID) / 2;
 			BobbyRE::PlanetComponent* planetComponent = getPlanetComponent(planetFormID, *DBInfo);
 			RE::NiMatrix3 planetRot = planetComponent->rotation;
 
@@ -371,16 +343,13 @@ namespace hooks
 			RE::NiPoint3 worldEast = planetRot.Transpose() * localEast;
 
 			REX::INFO("planetLocation: {}, {}, {}", planetLocation[0], planetLocation[1], planetLocation[2]);
-			REX::INFO("Radius: {}", radius);
-			REX::INFO("Lat/long: {}, {}", planetManager->tileLatitude, planetManager->tileLongitude);
+			double newPos[4];
+			float newRot[3];
+			BobbyRE::GetPlayerSystemPos(newPos, newRot);
 
-			double altitude = 2500000.0;
-			if (radius < 5000000)
-				altitude /= 500;
-
-			pos->x = planetComponent->X + worldUp.x * (radius + altitude);
-			pos->y = planetComponent->Y + worldUp.y * (radius + altitude);
-			pos->z = planetComponent->Z + worldUp.z * (radius + altitude);
+			pos->x = newPos[0];
+			pos->y = newPos[1];
+			pos->z = newPos[2];
 
 			cachedPos = *pos;
 
