@@ -40,6 +40,7 @@ struct takeoffState
 	float originalAtmosphereTopRadius;
 	RE::NiPoint3 endAnimAngle;
 	RE::NiPoint3 endAnimPos;
+	RE::NiPoint3 endFwd;
 };
 
 takeoffState g_takeoffState;
@@ -253,13 +254,22 @@ void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 {
 	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.05;
 	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.05;
-	float targetPosZ   = g_takeoffState.endAnimPos.z + 30;
+	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 100;
+	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 300;
+
 
 	ship->data.angle.y = lerp(g_takeoffState.endAnimAngle.y, targetAngleY, t);
 	ship->data.angle.z = lerp(g_takeoffState.endAnimAngle.z, targetAngleZ, t);
 
-	//camera goes whack if i do this
-	//ship->data.location.z = lerp(g_takeoffState.endAnimPos.z, targetPosZ, t);
+	float e = t * t * (3.0f - 2.0f * t);
+	RE::NiPoint3 pos = g_takeoffState.endAnimPos
+		+ g_takeoffState.endFwd * (targetPosFwd * e) + RE::NiPoint3(0, 0, targetPosZ * e);
+
+	ship->data.location = pos;
+	using func_update3DPos_t = void(RE::TESObjectREFR *, bool);
+	REL::Relocation<func_update3DPos_t>update3DPos{ REL::ID(63181) };
+
+	update3DPos(ship, true);
 
 }
 
@@ -492,7 +502,7 @@ namespace hooks
 			else
 			{
 				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.5f));
-				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
+				//fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
 				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
 				g_takeoffState.fadeTimer += dt;
 
@@ -504,6 +514,14 @@ namespace hooks
 					{
 						g_takeoffState.endAnimAngle = ship->data.angle;
 						g_takeoffState.endAnimPos   = ship->data.location;
+
+						using func_getRotationMatrix_t = RE::NiMatrix3*(RE::TESObjectREFR*, RE::NiMatrix3*);
+						REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
+
+						RE::NiMatrix3 rot;
+
+						getRotationMatrix(ship, &rot);
+						g_takeoffState.endFwd = rot * RE::NiPoint3(0, 1, 0);
 					}
 
 					if(settings.TakeoffExtensionLength > 1.0)
