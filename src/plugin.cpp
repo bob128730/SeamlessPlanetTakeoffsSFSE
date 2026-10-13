@@ -41,6 +41,7 @@ struct takeoffState
 	RE::NiPoint3 endAnimAngle;
 	RE::NiPoint3 endAnimPos;
 	RE::NiPoint3 endFwd;
+	float cloudDrop;
 };
 
 takeoffState g_takeoffState;
@@ -153,6 +154,10 @@ void fadeWeather(float t)
 	g_takeoffState.weatherPctOverride = lerp(0.0, 1.0, t);
 }
 
+void fadeClouds(float t)
+{
+	g_takeoffState.cloudDrop = lerp(0, 2500, t);
+}
 void fadeAtmospherics(float t)
 {
 	if (t > 1)
@@ -212,8 +217,8 @@ void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 {
 	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.05;
 	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.05;
-	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 100;
-	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 300;
+	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 1000;
+	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 3000;
 
 
 	ship->data.angle.y = lerp(g_takeoffState.endAnimAngle.y, targetAngleY, t);
@@ -295,6 +300,26 @@ namespace hooks
 			*(uint32_t*)(execList + 0x210) = 0;
 
 		original_endFrame(execList, waitHandler);
+	}
+
+	void* hook_convertClouds(void* ctx, std::byte* out, void* src)
+	{
+		void* r = original_convertClouds(ctx, out, src);
+
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED)
+		{
+			const float drop = g_takeoffState.cloudDrop;
+
+			for (int i = 0; i < 4; ++i) {
+				std::byte* p = out + 0x200 + 112 * i;
+				*(float*)(p + 0x28) -= drop;
+			}
+			for (int i = 0; i < 4; ++i) {
+				std::byte* l = out + 128 * i;
+				*(float*)(l + 0x28) -= drop;
+			}
+		}
+		return r;
 	}
 
 	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot)
@@ -398,7 +423,7 @@ namespace hooks
 			}
 			else
 			{
-				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.5f));
+				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.9f));
 				//fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength));
 				fadeImageSpaceSettings(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.17));
 				g_takeoffState.fadeTimer += dt;
@@ -482,6 +507,7 @@ namespace hooks
 
 				g_takeoffState.endAnimAngle = RE::NiPoint3{ 0.0, 0.0, 0.0 };
 				g_takeoffState.endAnimPos   = RE::NiPoint3{ 0.0, 0.0, 0.0 };
+				g_takeoffState.cloudDrop = 0;
 
 				g_takeoffState.atmosphereForm->settings.stars.staticVisibility = g_takeoffState.originalStarVisibility;
 				g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = g_takeoffState.originalDisableSimulatedVisibility;
@@ -546,7 +572,7 @@ namespace hooks
 
 	float hook_calcWeatherPct(RE::Sky* sky)
 	{
-		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED)
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
 			return g_takeoffState.weatherPctOverride;
 		return original_calcWeatherPct(sky);
 	}
@@ -562,6 +588,7 @@ namespace hooks
 		uintptr_t addr8 = REL::Relocation<uintptr_t>(REL::ID(69308)).address();
 		uintptr_t addr9 = REL::Relocation<uintptr_t>(REL::ID(144186)).address();
 		uintptr_t addr10 = REL::Relocation<uintptr_t>(REL::ID(99417)).address();
+		uintptr_t addr11 = REL::Relocation<uintptr_t>(REL::ID(56756)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
@@ -587,6 +614,9 @@ namespace hooks
 
 		uintptr_t endFrameCall = addr10 + 0x2DE;
 
+		uintptr_t convertCloudsCall = addr11 + 0x1E9;
+		uintptr_t convertCloudsCall2 = addr11 + 0x262;
+
 		REL::Trampoline& tramp = REL::GetTrampoline();
 
 		original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
@@ -598,6 +628,9 @@ namespace hooks
 		original_unkFunc = (func_unkFunc_t*)tramp.write_call<5>(unkFuncCall, hook_unkFunc);
 		original_unkFunc2 = (func_unkFunc2_t*)tramp.write_call<5>(unkFunc2Call, hook_unkFunc2);
 		original_endFrame = (func_endFrame_t*)tramp.write_call<5>(endFrameCall, hook_endFrame);
+
+		original_convertClouds = (func_convertClouds_t*)tramp.write_call<5>(convertCloudsCall, hook_convertClouds);
+		tramp.write_call<5>(convertCloudsCall2, hook_convertClouds);
 
 	}
 

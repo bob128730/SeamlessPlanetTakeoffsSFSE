@@ -279,4 +279,7 @@ namespace hooks
 
 	using func_endFrame_t = void(uintptr_t, void*);
 	func_endFrame_t* original_endFrame;
+
+	using func_convertClouds_t = void* (void* ctx, std::byte* out, void* src);
+	func_convertClouds_t* original_convertClouds;
 }
