@@ -2,6 +2,50 @@
 
 namespace BobbyRE 
 {
+	struct DBLookupContext;
+
+	namespace TESObjectREFR
+	{
+		using func_GetRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR*, RE::NiMatrix3*);
+		REL::Relocation<func_GetRotationMatrix_t>GetRotationMatrix{ REL::ID(63286) };
+
+		using func_PlaceInStarSystem_t = int(RE::TESObjectREFR*, RE::TESObjectCELL*, bool, double);
+		REL::Relocation<func_PlaceInStarSystem_t>PlaceInStarSystem{ REL::ID(102641) };
+	}
+
+	namespace PlayerCharacter
+	{
+		using func_UpdateDiscoveredStatus_t = void* (RE::Actor*, RE::BGSLocation*);
+		REL::Relocation<func_UpdateDiscoveredStatus_t>UpdatePlanetDiscoveryStatus{ REL::ID(102968) };
+	}
+
+	namespace TESObjectCELL
+	{
+		using func_RemoveReference_t = void(RE::TESObjectCELL*, RE::TESObjectREFR*, bool);
+		REL::Relocation<func_RemoveReference_t>RemoveReference{ REL::ID(62697) };
+
+		using func_AddReference_t = double(RE::TESObjectCELL*, RE::TESObjectREFR*, bool, bool);
+		REL::Relocation<func_AddReference_t>AddReference{ REL::ID(63034) };
+	}
+
+	namespace TES
+	{
+		using func_SetInteriorCell_t = void* (RE::TES*, RE::TESObjectCELL*, RE::NiPoint3*, bool);
+		REL::Relocation<func_SetInteriorCell_t>SetInteriorCell{ REL::ID(46037) };
+	}
+
+	namespace PlayerCamera
+	{
+		using func_SetShipFreeLook_t = void(RE::PlayerCamera*, bool);
+		REL::Relocation<func_SetShipFreeLook_t>SetShipFreeLook{ REL::ID(113437) };
+	}
+
+	namespace Sky
+	{
+		using func_SetActiveWeather = void(RE::Sky*, RE::BGSWeatherSettingsForm*, bool, bool);
+		REL::Relocation<func_SetActiveWeather>SetActiveWeather{ REL::ID(69299) };
+	}
+
 	namespace Spaceship 
 	{
 
@@ -44,6 +88,15 @@ namespace BobbyRE
 		void *qword40;
 		void *qword48;
 		uint32_t FormID;
+
+		bool traverseComponentTree(DBLookupContext* ctx, uint64_t* a2)
+		{
+			using func_traverseComponentTree_t = bool(DBInfo *, DBLookupContext*, uint64_t*);
+			REL::Relocation<func_traverseComponentTree_t>func{ REL::ID(126584) };
+
+			return func(this, ctx, a2);
+		}
+
 	};
 
 	struct DBLookupContext
@@ -182,4 +235,45 @@ namespace BobbyRE
 		double Z;
 	};
 
+	using func_updateStarDiscoveryStatus_t = void* (void*, uint32_t, bool);
+	REL::Relocation<func_updateStarDiscoveryStatus_t>updateStarDiscoveryStatus{ REL::ID(102650) };
+
+	using func_unkfunc_t = void* (RE::TESObjectREFR**, RE::BGSLocation*, RE::BGSLocation*);
+	REL::Relocation<func_unkfunc_t>unkfunc{ REL::ID(64046) };
+
+	using func_unkfunc2_t = void* ();
+	REL::Relocation<func_unkfunc2_t>unkfunc2{ REL::ID(62173) };
+
+	using func_unkfunc3_t = void* (void*, RE::TESObjectREFR*, RE::BGSLocation*, RE::BGSLocation*, bool);
+	REL::Relocation<func_unkfunc3_t>unkfunc3{ REL::ID(72938) };
+
+	using func_unkfunc4_t = void* (void*, uint32_t, void*);
+	REL::Relocation<func_unkfunc4_t>unkfunc4{ REL::ID(72962) };
+}
+
+namespace hooks
+{
+	using func_updateSpaceLocation_t = bool(uint32_t, BobbyRE::NiPoint4_double*, RE::NiMatrix3*);
+	func_updateSpaceLocation_t* original_updateSpaceLocation;
+
+	using func_setSpacePlanetOrbit_t = void* (va_list, BobbyRE::DBInfo**, void*, uint32_t, double*, RE::NiMatrix3*, BobbyRE::NiPoint4_double*, uint32_t, bool);
+	func_setSpacePlanetOrbit_t* original_setSpacePlanetOrbit;
+
+	using func_PCUpdate_t = void(RE::PlayerCharacter*, float);
+	func_PCUpdate_t* original_PCUpdate;
+
+	using func_unkFunc_t = bool(int*);
+	func_unkFunc_t* original_unkFunc;
+
+	using func_unkFunc2_t = void* (void*, RE::TESImageSpace::ImageSpaceSettings*);
+	func_unkFunc2_t* original_unkFunc2;
+
+	using func_calcWeatherPct_t = float(RE::Sky*);
+	func_calcWeatherPct_t* original_calcWeatherPct;
+
+	using func_forEachRef_t = void* (void*, void*, bool);
+	func_forEachRef_t* original_forEachRef;
+
+	using func_endFrame_t = void(uintptr_t, void*);
+	func_endFrame_t* original_endFrame;
 }

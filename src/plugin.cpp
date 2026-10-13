@@ -47,85 +47,50 @@ takeoffState g_takeoffState;
 
 void updateDiscoveryInfo(RE::TESObjectREFR* ship) 
 {
-	using func_updateDiscoveredStatus_t = void* (RE::Actor*, RE::BGSLocation*);
-	REL::Relocation<func_updateDiscoveredStatus_t>updatePlanetDiscoveryStatus{ REL::ID(102968) };
-	updatePlanetDiscoveryStatus(ship->GetSpaceshipPilot(), newLocation);
+	BobbyRE::PlayerCharacter::UpdatePlanetDiscoveryStatus(ship->GetSpaceshipPilot(), newLocation);
 
 	REL::Relocation<uintptr_t*>unkGlobal{ REL::ID(938414) };
 
-	using func_updateStarDiscoveryStatus_t = void* (void*, uint32_t, bool);
-	REL::Relocation<func_updateStarDiscoveryStatus_t>updateStarDiscoveryStatus{ REL::ID(102650) };
-
 	BobbyRE::DBInfo* currentStarInfo = *(BobbyRE::DBInfo**)(*unkGlobal.get() + 0x58);
 
-	updateStarDiscoveryStatus(nullptr, currentStarInfo->FormID, 1);
+	BobbyRE::updateStarDiscoveryStatus(nullptr, currentStarInfo->FormID, 1);
 }
 
 void manualLoadSystem(RE::TESObjectREFR* ship)
 {
-	using func_getRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR *, RE::NiMatrix3 *);
-	REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
-
-	getRotationMatrix(ship, &takeoffRot);
-
-	using func_loadSystem_t = int(RE::TESObjectREFR*, RE::TESObjectCELL*, bool, double);
-	REL::Relocation<func_loadSystem_t>loadSystem{ REL::ID(102641) };
-
-	using func_removeObjectFromCell_t = void(RE::TESObjectCELL*, RE::TESObjectREFR*, bool);
-	REL::Relocation<func_removeObjectFromCell_t>removeObjectFromCell{ REL::ID(62697) };
-
+	BobbyRE::TESObjectREFR::GetRotationMatrix(ship, &takeoffRot);
 
 	RE::TESObjectCELL* parentCell = ship->parentCell;
-	removeObjectFromCell(parentCell, ship, false);
+
+	BobbyRE::TESObjectCELL::RemoveReference(parentCell, ship, false);
 	prevLocation = ship->GetCurrentLocation();
 
 	RE::TESObjectCELL* GalaxyCell = (RE::TESObjectCELL*)RE::TESObjectCELL::LookupByID(0x18343);
 
 	ship->SetParentCell(GalaxyCell);
-	loadSystem(ship, parentCell, 0, 1);
+	BobbyRE::TESObjectREFR::PlaceInStarSystem(ship, parentCell, 0, 1);
 	newLocation = ship->GetCurrentLocation();
 
 	RE::NiPoint3 a3{ 0,0,0 };
 
-	using func_loadSystem2_t = void* (RE::TES *, RE::TESObjectCELL *, RE::NiPoint3 *, bool);
-	REL::Relocation<func_loadSystem2_t>unloadCurrentLocation{ REL::ID(46037) };
-
-	unloadCurrentLocation(RE::TES::GetSingleton(), RE::PlayerCharacter::GetSingleton()->parentCell, &a3, 1);
+	BobbyRE::TES::SetInteriorCell(RE::TES::GetSingleton(), RE::PlayerCharacter::GetSingleton()->parentCell, &a3, 1);
 	ship->SetParentCell(0);
-
-	using func_unkfunc_t = void* (RE::TESObjectREFR**, RE::BGSLocation*, RE::BGSLocation*);
-	REL::Relocation<func_unkfunc_t>unkfunc{ REL::ID(64046) };
-
-	using func_unkfunc2_t = void* ();
-	REL::Relocation<func_unkfunc2_t>unkfunc2{ REL::ID(62173) };
-
-	using func_unkfunc3_t = void* (void*, RE::TESObjectREFR*, RE::BGSLocation*, RE::BGSLocation*, bool);
-	REL::Relocation<func_unkfunc3_t>unkfunc3{ REL::ID(72938) };
-
-	using func_unkfunc4_t = void* (void*, uint32_t, void*);
-	REL::Relocation<func_unkfunc4_t>unkfunc4{ REL::ID(72962) };
-
-	using func_attatchObjectToCell_t = double(RE::TESObjectCELL*, RE::TESObjectREFR*, bool, bool);
-	REL::Relocation<func_attatchObjectToCell_t>attatchObjectToCell{ REL::ID(63034) };
 	
-	attatchObjectToCell(GalaxyCell, ship, 0, 0);
+	BobbyRE::TESObjectCELL::AddReference(GalaxyCell, ship, 0, 0);
 
 	if (prevLocation != newLocation)
 	{
 		_InterlockedExchangeAdd64((volatile long long*)&ship->refCount, 0x80000200001);
-		unkfunc(&ship, prevLocation, newLocation);
+		BobbyRE::unkfunc(&ship, prevLocation, newLocation);
 		ship->DecRefCount();
-		void* v206 = unkfunc2();
+		void* v206 = BobbyRE::unkfunc2();
 		int v456[8];
-		void* v207 = unkfunc3(v456, ship, prevLocation, newLocation, 0);
+		void* v207 = BobbyRE::unkfunc3(v456, ship, prevLocation, newLocation, 0);
 
-		unkfunc4(v206, 4, v207);
+		BobbyRE::unkfunc4(v206, 4, v207);
 	}
 
-	using func_setShipFreeLook_t = void(RE::PlayerCamera *, bool);
-	REL::Relocation<func_setShipFreeLook_t>setShipFreeLook{ REL::ID(113437) };
-
-	setShipFreeLook(RE::PlayerCamera::GetSingleton(), false);
+	BobbyRE::PlayerCamera::SetShipFreeLook(RE::PlayerCamera::GetSingleton(), false);
 }
 
 template <typename componentType> componentType *getComponent(BobbyRE::DBLookupContext* ctx)
@@ -160,14 +125,7 @@ BobbyRE::PlanetComponent* getPlanetComponent(uint32_t formID, BobbyRE::DBInfo *D
 	BobbyRE::DBInfo* context = *(BobbyRE::DBInfo**)(moduleState + 0x58);
 	uint64_t out[4] = { 0 };
 
-
-	using func_dbLookup_t = void* (void *, void*, uint64_t *);
-	REL::Relocation<func_dbLookup_t>dbLookup{ REL::ID(126806) };
-
-	using func_traverseComponentTree_t = bool(BobbyRE::DBInfo *, BobbyRE::DBLookupContext *, uint64_t*);
-	REL::Relocation<func_traverseComponentTree_t>traverseComponentTree{ REL::ID(126584) };
-
-	traverseComponentTree(context, &ctx, &componentID);
+	context->traverseComponentTree(&ctx, &componentID);
 	BobbyRE::PlanetComponent* result = getComponent<BobbyRE::PlanetComponent>(&ctx);
 
 	return result;
@@ -310,19 +268,13 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 					g_takeoffState.weatherPctOverride = 0.0;
 
 					g_takeoffState.state = TAKEOFF_ANIM_STARTED;
-
-					using func_getRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR*, RE::NiMatrix3*);
-					REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
-
-					using func_setActiveWeather = void(RE::Sky *, RE::BGSWeatherSettingsForm *, bool, bool);
-					REL::Relocation<func_setActiveWeather>setActiveWeather{ REL::ID(69299) };
 					
 					if (sky->currentWeather != (RE::BGSWeatherSettingsForm*)RE::TESForm::LookupByID(0x3D2491)) //WeatherNone
 					{
-						setActiveWeather(sky, (RE::BGSWeatherSettingsForm *)RE::TESForm::LookupByID(0x2B07E), 0, 0); //clear weather
+						BobbyRE::Sky::SetActiveWeather(sky, (RE::BGSWeatherSettingsForm *)RE::TESForm::LookupByID(0x2B07E), 0, 0); //clear weather
 					}
 
-					getRotationMatrix(ship, &landedRot);
+					BobbyRE::TESObjectREFR::GetRotationMatrix(ship, &landedRot);
 				}
 			}
 		}
@@ -332,30 +284,6 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 
 namespace hooks
 {
-	using func_updateSpaceLocation_t = bool(uint32_t, BobbyRE::NiPoint4_double *, RE::NiMatrix3 *);
-	func_updateSpaceLocation_t* original_updateSpaceLocation;
-
-	using func_setSpacePlanetOrbit_t = void*(va_list, BobbyRE::DBInfo **, void *, uint32_t, double *, RE::NiMatrix3*, BobbyRE::NiPoint4_double*, uint32_t, bool);
-	func_setSpacePlanetOrbit_t* original_setSpacePlanetOrbit;
-
-	using func_PCUpdate_t = void(RE::PlayerCharacter *, float);
-	func_PCUpdate_t* original_PCUpdate;
-
-	using func_unkFunc_t = bool(int*);
-	func_unkFunc_t* original_unkFunc;
-
-	using func_unkFunc2_t = void*(void *, RE::TESImageSpace::ImageSpaceSettings*);
-	func_unkFunc2_t* original_unkFunc2;
-
-	using func_calcWeatherPct_t = float(RE::Sky *);
-	func_calcWeatherPct_t* original_calcWeatherPct;
-
-	using func_forEachRef_t = void*(void*, void *, bool);
-	func_forEachRef_t *original_forEachRef;
-
-	using func_endFrame_t = void(uintptr_t, void*);
-	func_endFrame_t* original_endFrame;
-
 	uint32_t g_planetFormID;
 	BobbyRE::DBInfo** g_DBInfo;
 
@@ -515,12 +443,9 @@ namespace hooks
 						g_takeoffState.endAnimAngle = ship->data.angle;
 						g_takeoffState.endAnimPos   = ship->data.location;
 
-						using func_getRotationMatrix_t = RE::NiMatrix3*(RE::TESObjectREFR*, RE::NiMatrix3*);
-						REL::Relocation<func_getRotationMatrix_t>getRotationMatrix{ REL::ID(63286) };
-
 						RE::NiMatrix3 rot;
 
-						getRotationMatrix(ship, &rot);
+						BobbyRE::TESObjectREFR::GetRotationMatrix(ship, &rot);
 						g_takeoffState.endFwd = rot * RE::NiPoint3(0, 1, 0);
 					}
 
