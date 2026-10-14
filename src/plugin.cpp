@@ -615,6 +615,13 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 			byte* shouldStartTakeOffCam = (byte*)(initiateTakeOffSequence + 0x1c9);
 
 			REL::WriteSafeData(shouldStartTakeOffCam, jmp);
+
+			uintptr_t startTakeoff = REL::Relocation<uintptr_t>(REL::ID(119907)).address();
+			byte* inputLayerCall = (byte*)(startTakeoff + 0x2A3);
+			byte* hudModePushCall = (byte*)(startTakeoff + 0x28E);
+		
+			REL::WriteSafeData(inputLayerCall, nopcall);
+			REL::WriteSafeData(hudModePushCall, nopcall);
 		}
 
 		hooks::install();
