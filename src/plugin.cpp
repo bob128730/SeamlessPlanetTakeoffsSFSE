@@ -119,15 +119,16 @@ void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 {
 	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.05;
 	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.05;
-	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 10000;
-	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * 30000;
+	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * (atmosphereSettings->surfaceRadius * 0.00025);
+	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * (atmosphereSettings->surfaceRadius * 0.00025);
 
+	ship->data.angle.x = g_takeoffState.endAnimAngle.x;
 	ship->data.angle.y = lerp(g_takeoffState.endAnimAngle.y, targetAngleY, t);
 	ship->data.angle.z = lerp(g_takeoffState.endAnimAngle.z, targetAngleZ, t);
 
-	float e = powf(t, 4);
+	float e = powf(t,2);
 	RE::NiPoint3 pos = g_takeoffState.endAnimPos
-		+ g_takeoffState.endFwd * (targetPosFwd * e) + RE::NiPoint3(0, 0, targetPosZ * e);
+		+ g_takeoffState.endFwd * (targetPosFwd * e);
 
 	ship->data.location = pos;
 	using func_update3DPos_t = void(RE::TESObjectREFR *, bool);
@@ -239,7 +240,7 @@ namespace hooks
 		{
 			double atmoRadius = atmosphereSettings->surfaceRadius; 
 			*(double*)(entry + 0x48) = atmoRadius;
-			*(double*)(entry + 0x40) = atmoRadius + RE::PlayerCamera::GetSingleton()->cameraRoot->world.translate.z;;
+			*(double*)(entry + 0x40) = atmoRadius + RE::PlayerCamera::GetSingleton()->cameraRoot->world.translate.z - 100;
 		}
 		return r;
 	}
@@ -384,7 +385,7 @@ namespace hooks
 						RE::NiMatrix3 rot;
 
 						BobbyRE::TESObjectREFR::GetRotationMatrix(ship, &rot);
-						g_takeoffState.endFwd = rot * RE::NiPoint3(0, 1, 0);
+						g_takeoffState.endFwd = rot.Transpose() * RE::NiPoint3(0, 1, 0);
 					}
 
 					if(settings.TakeoffExtensionLength > 1.0)
@@ -408,11 +409,11 @@ namespace hooks
 		}
 		case TAKEOFF_LOAD_STARTED:
 		{
-			//g_frameDraw = false;
-			//manualLoadSystem(player->GetSpaceship());
-			//RE::TES::GetSingleton()->sky->mode = 0;
-			//g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
-			//togglePlanetDraw(false);
+			g_frameDraw = false;
+			manualLoadSystem(player->GetSpaceship());
+			RE::TES::GetSingleton()->sky->mode = 0;
+			g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
+			togglePlanetDraw(false);
 			break;
 		}
 		case TAKEOFF_LOAD_COMPLETE:
