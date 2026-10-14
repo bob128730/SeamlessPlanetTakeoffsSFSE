@@ -229,6 +229,9 @@ namespace BobbyRE
 		float atmosphereTopRadius;
 		float seaOffset;
 		float atmosphereHeight;
+		std::byte pad2[0xC];
+		float unk;
+		uint32_t limitRays;
 	};
 	struct PlanetComponent
 	{
@@ -288,4 +291,7 @@ namespace hooks
 
 	using func_convertClouds_t = void* (void* ctx, std::byte* out, void* src);
 	func_convertClouds_t* original_convertClouds;
+
+	using func_updateRelative_t = void* (void *, uintptr_t);
+	func_updateRelative_t* original_updateRelative;
 }

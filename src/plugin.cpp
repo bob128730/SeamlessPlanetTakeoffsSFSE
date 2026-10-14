@@ -137,6 +137,26 @@ void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
 
 }
 
+void togglePlanetDraw(bool enable)
+{
+
+	uintptr_t updateCelestialBodies = REL::Relocation<uintptr_t>(REL::ID(69330)).address();
+	void* address = (void*)(updateCelestialBodies + 0x8bd);
+
+	int8_t jmp[2] = { 0xEB, 0x04 };
+	int8_t jz[2] = { 0x0F, 0x84 };
+
+	if (enable)
+	{
+		REL::WriteSafeData(address, jmp);
+		atmosphereSettings->limitRays = 1;
+	}
+	else
+	{
+		REL::WriteSafeData(address, jz);
+		atmosphereSettings->limitRays = 0;
+	}	
+}
 BobbyRE::atmosphereRenderSettings* getAtmosphereSettings(int index)
 {
 	uintptr_t storageTable = *REL::Relocation<uintptr_t*>(REL::ID(837415)).get();
@@ -186,6 +206,8 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 
 					RE::TESObjectCELL* GalaxyCell = (RE::TESObjectCELL*)RE::TESObjectCELL::LookupByID(0x18343);
 					g_spaceImageSpaceSettings = BobbyRE::TESObjectCELL::GetIss(GalaxyCell);
+
+					togglePlanetDraw(true);
 				}
 			}
 		}
@@ -206,6 +228,20 @@ namespace hooks
 			*(uint32_t*)(execList + 0x210) = 0;
 
 		original_endFrame(execList, waitHandler);
+	}
+
+	bool hook_updateRelative(void* ctx, uintptr_t entry)
+	{
+		bool r = original_updateRelative(ctx, entry);
+
+		if ((g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
+			&& RE::TES::GetSingleton()->sky->planetID == *(uint32_t*)(entry + 0x50))
+		{
+			double atmoRadius = atmosphereSettings->surfaceRadius; 
+			*(double*)(entry + 0x48) = atmoRadius;
+			*(double*)(entry + 0x40) = atmoRadius + RE::PlayerCamera::GetSingleton()->cameraRoot->world.translate.z;;
+		}
+		return r;
 	}
 
 	void* hook_convertClouds(void* ctx, std::byte* out, void* src)
@@ -372,10 +408,11 @@ namespace hooks
 		}
 		case TAKEOFF_LOAD_STARTED:
 		{
-			g_frameDraw = false;
-			manualLoadSystem(player->GetSpaceship());
-			RE::TES::GetSingleton()->sky->mode = 0;
-			g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
+			//g_frameDraw = false;
+			//manualLoadSystem(player->GetSpaceship());
+			//RE::TES::GetSingleton()->sky->mode = 0;
+			//g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
+			//togglePlanetDraw(false);
 			break;
 		}
 		case TAKEOFF_LOAD_COMPLETE:
@@ -458,7 +495,7 @@ namespace hooks
 				if (g_surfaceImageSpaceSettings)
 				{
 					*g_surfaceImageSpaceSettings = *settings;
-					*g_originalSurfaceImageSpaceSettings = *g_surfaceImageSpaceSettings;
+					//*g_originalSurfaceImageSpaceSettings = *g_surfaceImageSpaceSettings;
 				}
 			}
 			else
@@ -491,6 +528,7 @@ namespace hooks
 		uintptr_t addr9 = REL::Relocation<uintptr_t>(REL::ID(144186)).address();
 		uintptr_t addr10 = REL::Relocation<uintptr_t>(REL::ID(99417)).address();
 		uintptr_t addr11 = REL::Relocation<uintptr_t>(REL::ID(56756)).address();
+		uintptr_t addr12 = REL::Relocation<uintptr_t>(REL::ID(69330)).address();
 
 		uintptr_t playerShipUpdateCall = addr1 + 0x68;
 		uintptr_t updateSpaceLocationCall = addr2 + 0x101f;
@@ -519,6 +557,8 @@ namespace hooks
 		uintptr_t convertCloudsCall = addr11 + 0x1E9;
 		uintptr_t convertCloudsCall2 = addr11 + 0x262;
 
+		uintptr_t updateRelative = addr12 + 0xB63;
+
 		REL::Trampoline& tramp = REL::GetTrampoline();
 
 		original_updateSpaceLocation = (func_updateSpaceLocation_t*)tramp.write_call<5>(updateSpaceLocationCall, hook_updateSpaceLocation);
@@ -534,6 +574,8 @@ namespace hooks
 		original_convertClouds = (func_convertClouds_t*)tramp.write_call<5>(convertCloudsCall, hook_convertClouds);
 		tramp.write_call<5>(convertCloudsCall2, hook_convertClouds);
 
+		original_updateRelative = (func_updateRelative_t*)tramp.write_call<5>(updateRelative, hook_updateRelative);
+
 	}
 
 }
@@ -545,8 +587,6 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		REX::INFO("Init");
 		settings.load();
 		g_takeoffState = {};
-
-		g_originalSurfaceImageSpaceSettings = (RE::TESImageSpace::ImageSpaceSettings*)malloc(sizeof(RE::TESImageSpace::ImageSpaceSettings));
 
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
 		auto source = RE::Spaceship::TakeOffEvent::GetEventSource();
