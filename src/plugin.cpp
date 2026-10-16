@@ -1,7 +1,7 @@
-#include "BobbyRE/BobbyRE.h"
 #include "config.h"
 #include "plugin.h"
 #include "transition.h"
+#include "atmosphereHeight.h"
 
 config settings;
 RE::BGSLocation* prevLocation;
@@ -19,8 +19,6 @@ BobbyRE::NiPoint4_double cachedPos;
 int g_index;
 
 bool g_frameDraw = true;
-
-takeoffState g_takeoffState;
 
 void updateDiscoveryInfo(RE::TESObjectREFR* ship) 
 {
@@ -115,26 +113,28 @@ RE::BGSAtmosphere* getPlanetAtmosphere(void* a1)
 	return getAtmosphere(a1);
 }
 
-void extendTakeoffAnim(RE::TESObjectREFR* ship, float t)
+void extendTakeoffAnim_pos(RE::TESObjectREFR* ship, float t)
 {
-	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.05;
-	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.05;
-	float targetPosZ   = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * (atmosphereSettings->surfaceRadius * 0.00025);
-	float targetPosFwd = g_takeoffState.endAnimPos.z + settings.TakeoffExtensionLength * (atmosphereSettings->surfaceRadius * 0.00025);
-
-	ship->data.angle.x = g_takeoffState.endAnimAngle.x;
-	ship->data.angle.y = lerp(g_takeoffState.endAnimAngle.y, targetAngleY, t);
-	ship->data.angle.z = lerp(g_takeoffState.endAnimAngle.z, targetAngleZ, t);
-
-	float e = powf(t,2);
+	float targetPosFwd = g_takeoffState.endAnimPos.z + 15000;//atmosphereSettings->surfaceRadius * 0.046429;//210000;
+	float e = powf(t, 3);
 	RE::NiPoint3 pos = g_takeoffState.endAnimPos
 		+ g_takeoffState.endFwd * (targetPosFwd * e);
 
 	ship->data.location = pos;
-	using func_update3DPos_t = void(RE::TESObjectREFR *, bool);
+	using func_update3DPos_t = void(RE::TESObjectREFR*, bool);
 	REL::Relocation<func_update3DPos_t>update3DPos{ REL::ID(63181) };
 
 	update3DPos(ship, true);
+}
+
+void extendTakeoffAnim_rot(RE::TESObjectREFR* ship, float t)
+{
+	float targetAngleY = g_takeoffState.endAnimAngle.y + 0.05;
+	float targetAngleZ = g_takeoffState.endAnimAngle.z - 0.05;
+
+	ship->data.angle.x = g_takeoffState.endAnimAngle.x;
+	ship->data.angle.y = lerp(g_takeoffState.endAnimAngle.y, targetAngleY, t);
+	ship->data.angle.z = lerp(g_takeoffState.endAnimAngle.z, targetAngleZ, t);
 
 }
 
@@ -168,6 +168,22 @@ BobbyRE::atmosphereRenderSettings* getAtmosphereSettings(int index)
 	return (BobbyRE::atmosphereRenderSettings*)(*(uint64_t*)(base + 968LL) + 192LL * (uint64_t)idx);
 }
 
+//SLOP :(
+BobbyRE::atmosphereRenderSettings* getCurrentAtmosphereSettings()
+{
+	auto owner = *REL::Relocation<uintptr_t*>(REL::ID(936470)).get();   
+	if (!owner) return nullptr;
+	const uint32_t h = *(uint32_t*)(owner + 0x60);
+	if (h == 0xFFFFFF) return nullptr;
+
+	uintptr_t storage = *REL::Relocation<uintptr_t*>(REL::ID(837415)).get(); 
+	if ((h & 0xFFFFFF) >= 0x40 || (h >> 24) == 0 ||
+		(h >> 24) != *(uint8_t*)(*(uintptr_t*)(storage + 16) + (h & 0xFFFFFF)))
+		return nullptr;
+	return getAtmosphereSettings(h & 0xFFFFFF);
+}
+//END OF SLOP :)
+
 class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent> 
 {
 	using func_playerFastTravel_t = bool(RE::PlayerCharacter*, void*, RE::NiPoint3*, RE::TESObjectCELL*, bool, bool, bool, bool, uint16_t);
@@ -184,7 +200,7 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 				REX::INFO("State: {}", event.state);
 				if (event.state == 0)
 				{
-					atmosphereSettings = getAtmosphereSettings(0);
+					atmosphereSettings = getCurrentAtmosphereSettings();//getAtmosphereSettings(0); 
 					RE::Sky* sky = RE::TES::GetSingleton()->sky;
 
 					g_takeoffState.atmosphereForm = getPlanetAtmosphere(BobbyRE::BGSPlanet::Manager::GetSingleton()->char110);
@@ -193,10 +209,11 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 					g_takeoffState.originalDisableSimulatedVisibility = g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility;
 					g_takeoffState.originalAtmosphereTopRadius = atmosphereSettings->atmosphereTopRadius;
 					g_takeoffState.weatherPctOverride = 0.0;
+					g_takeoffState.origialCamZ = RE::PlayerCamera::GetSingleton()->cameraRoot->world.translate.z;;
 
 					g_takeoffState.state = TAKEOFF_ANIM_STARTED;
 					
-				//	BobbyRE::PlayerCamera::SetShipFreeLook(RE::PlayerCamera::GetSingleton(), false);
+					BobbyRE::PlayerCamera::SetShipFreeLook(RE::PlayerCamera::GetSingleton(), false);
 
 					if (sky->currentWeather != (RE::BGSWeatherSettingsForm*)RE::TESForm::LookupByID(0x3D2491)) //WeatherNone
 					{
@@ -240,48 +257,63 @@ namespace hooks
 		{
 			double atmoRadius = atmosphereSettings->surfaceRadius; 
 			*(double*)(entry + 0x48) = atmoRadius;
-			*(double*)(entry + 0x40) = atmoRadius + RE::PlayerCamera::GetSingleton()->cameraRoot->world.translate.z - 100;
+			*(double*)(entry + 0x40) = atmoRadius + RE::PlayerCamera::GetSingleton()->cameraRoot->world.translate.z - 100 + g_takeoffState.fakeHeight;
 		}
 		return r;
 	}
 
 	void* hook_convertClouds(void* ctx, std::byte* out, void* src)
 	{
-		void* r = original_convertClouds(ctx, out, src);
+		void* result = original_convertClouds(ctx, out, src);
 
 		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED)
 		{
 			const float drop = g_takeoffState.cloudDrop;
+			float camZ = RE::PlayerCamera::GetSingleton()->cameraRoot->world.translate.z;
+			float dZ = camZ - g_takeoffState.origialCamZ;
 
 			for (int i = 0; i < 4; ++i) {
 				std::byte* p = out + 0x200 + 112 * i;
-				*(float*)(p + 0x28) -= drop;
+
+				float* elevation = (float*)(p + 0x28);
+				*elevation = max((*elevation - dZ - drop), 1.0);
 			}
 			for (int i = 0; i < 4; ++i) {
 				std::byte* l = out + 128 * i;
 				*(float*)(l + 0x28) -= drop;
 			}
 		}
-		return r;
+		return result;
 	}
 
+	uint64_t hook_cloudCardRenderExecute(byte* pass, void* ctx, void* a3)
+	{
+		return 0;
+		uint64_t result = original_cloudCardRenderExecute(pass, ctx, a3);
+		*(float*)(pass + 440) = g_takeoffState.cloudDrop;
+		return result;
+	}
+	
 	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot)
 	{
-		if (g_takeoffState.state != NOT_STARTED && !markedCell)
+		if (objectFormID != RE::PlayerCharacter::GetSingleton()->GetSpaceship()->formID)
 		{
-			REX::INFO("Moving space cell location");
+			if (g_takeoffState.state != NOT_STARTED && !markedCell)
+			{
+				REX::INFO("Moving space cell location");
 
-			double newPos[4];
-			float newRot[3];
-			BobbyRE::GetPlayerSystemPos(newPos, newRot);
+				double newPos[4];
+				float newRot[3];
+				BobbyRE::GetPlayerSystemPos(newPos, newRot);
 
-			pos->x = newPos[0];
-			pos->y = newPos[1];
-			pos->z = newPos[2];
-		}
-		else
-		{
-			markedCell = false;
+				pos->x = newPos[0];
+				pos->y = newPos[1];
+				pos->z = newPos[2];
+			}
+			else
+			{
+				markedCell = false;
+			}
 		}
 		return original_updateSpaceLocation(objectFormID, pos, rot);
 	}
@@ -306,6 +338,10 @@ namespace hooks
 			BobbyRE::PlanetComponent* planetComponent = getPlanetComponent(planetFormID, *DBInfo);
 			RE::NiMatrix3 planetRot = planetComponent->rotation;
 
+			float R = planetComponent->radius;
+			float rCut = R + g_takeoffState.maxZ + g_takeoffState.fakeHeight - 50000;
+
+			REX::INFO("Planet radius: {}", R);
 			RE::NiPoint3 worldUp = planetRot.Transpose() * localUp;
 			RE::NiPoint3 worldNorth = planetRot.Transpose() * localNorth;
 			RE::NiPoint3 worldEast = planetRot.Transpose() * localEast;
@@ -315,9 +351,9 @@ namespace hooks
 			float newRot[3];
 			BobbyRE::GetPlayerSystemPos(newPos, newRot);
 
-			pos->x = newPos[0];
-			pos->y = newPos[1];
-			pos->z = newPos[2];
+			pos->x = planetComponent->X + newRot[0] * rCut;
+			pos->y = planetComponent->Y + newRot[1] * rCut;
+			pos->z = planetComponent->Z + newRot[2] * rCut;
 
 			cachedPos = *pos;
 
@@ -388,8 +424,20 @@ namespace hooks
 						g_takeoffState.endFwd = rot.Transpose() * RE::NiPoint3(0, 1, 0);
 					}
 
-					if(settings.TakeoffExtensionLength > 1.0)
-						extendTakeoffAnim(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
+					if (settings.TakeoffExtensionLength > 1.0)
+					{
+						extendTakeoffAnim_rot(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
+						if (((g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength) < 0.25)
+						{
+							extendTakeoffAnim_pos(ship, (g_takeoffState.fadeTimer - 5) / (settings.TakeoffExtensionLength / 4));
+						}
+						else
+						{
+							g_takeoffState.fakeHeight = lerp(0, atmosphereSettings->surfaceRadius * 0.05, ((g_takeoffState.fadeTimer - 5) - settings.TakeoffExtensionLength * 0.25) / (settings.TakeoffExtensionLength * 0.75));
+							g_takeoffState.cloudDrop = g_takeoffState.fakeHeight;
+							atmosphereHeight::setStarHorizon(atmosphereSettings, g_takeoffState.fakeHeight);
+						}
+					}
 				}
 
 				if (g_takeoffState.fadeTimer > (5 + settings.TakeoffExtensionLength - 0.5) && settings.EnableLoadBlur)
@@ -410,10 +458,12 @@ namespace hooks
 		case TAKEOFF_LOAD_STARTED:
 		{
 			g_frameDraw = false;
+			g_takeoffState.maxZ = player->GetSpaceship()->data.location.z;
 			manualLoadSystem(player->GetSpaceship());
 			RE::TES::GetSingleton()->sky->mode = 0;
 			g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
 			togglePlanetDraw(false);
+			g_takeoffState.fakeHeight = 0;
 			break;
 		}
 		case TAKEOFF_LOAD_COMPLETE:
@@ -455,6 +505,7 @@ namespace hooks
 				g_takeoffState.endAnimAngle = RE::NiPoint3{ 0.0, 0.0, 0.0 };
 				g_takeoffState.endAnimPos   = RE::NiPoint3{ 0.0, 0.0, 0.0 };
 				g_takeoffState.cloudDrop = 0;
+				g_takeoffState.issT = 0;
 
 				g_takeoffState.atmosphereForm->settings.stars.staticVisibility = g_takeoffState.originalStarVisibility;
 				g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = g_takeoffState.originalDisableSimulatedVisibility;
@@ -517,6 +568,18 @@ namespace hooks
 		return original_calcWeatherPct(sky);
 	}
 
+	double hook_minOrbitKm(uint32_t planetID)
+	{
+		//if (g_takeoffState.state != NOT_STARTED)
+		//{
+			if (planetID != 0 && planetID == g_planetFormID)
+			{
+				return 0.0;
+			}
+		//}
+		return original_minOrbitKm(planetID);
+	}
+
 	void install() {
 		uintptr_t addr1 = REL::Relocation<uintptr_t>(REL::ID(97772)).address();
 		uintptr_t addr2 = REL::Relocation<uintptr_t>(REL::ID(57659)).address();
@@ -576,7 +639,17 @@ namespace hooks
 		tramp.write_call<5>(convertCloudsCall2, hook_convertClouds);
 
 		original_updateRelative = (func_updateRelative_t*)tramp.write_call<5>(updateRelative, hook_updateRelative);
+		
+		func_minOrbitKm_t **slot = REL::Relocation<func_minOrbitKm_t**>{ REL::ID(1141031) }.get();
+		original_minOrbitKm = *slot ? *slot
+			: REL::Relocation<func_minOrbitKm_t*>{ REL::ID(1015279) }.get();
+		*slot = &hook_minOrbitKm;
 
+		auto* vt = REL::Relocation<std::uintptr_t*>(REL::ID(496810)).get();   // CloudCardsRenderPass vftable
+		original_cloudCardRenderExecute = (func_cloudCardRenderExecute_t*)(vt[7]);                      // 0x142B0CB90
+		REL::WriteSafeData((std::uintptr_t)(vt + 7), &hook_cloudCardRenderExecute);
+
+		atmosphereHeight::hooks::install(&tramp);
 	}
 
 }

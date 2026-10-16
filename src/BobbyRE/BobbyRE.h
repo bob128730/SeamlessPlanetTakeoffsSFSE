@@ -7,46 +7,46 @@ namespace BobbyRE
 	namespace TESObjectREFR
 	{
 		using func_GetRotationMatrix_t = RE::NiMatrix3* (RE::TESObjectREFR*, RE::NiMatrix3*);
-		REL::Relocation<func_GetRotationMatrix_t>GetRotationMatrix{ REL::ID(63286) };
+		inline REL::Relocation<func_GetRotationMatrix_t>GetRotationMatrix{ REL::ID(63286) };
 
 		using func_PlaceInStarSystem_t = int(RE::TESObjectREFR*, RE::TESObjectCELL*, bool, double);
-		REL::Relocation<func_PlaceInStarSystem_t>PlaceInStarSystem{ REL::ID(102641) };
+		inline REL::Relocation<func_PlaceInStarSystem_t>PlaceInStarSystem{ REL::ID(102641) };
 	}
 
 	namespace PlayerCharacter
 	{
 		using func_UpdateDiscoveredStatus_t = void* (RE::Actor*, RE::BGSLocation*);
-		REL::Relocation<func_UpdateDiscoveredStatus_t>UpdatePlanetDiscoveryStatus{ REL::ID(102968) };
+		inline REL::Relocation<func_UpdateDiscoveredStatus_t>UpdatePlanetDiscoveryStatus{ REL::ID(102968) };
 	}
 
 	namespace TESObjectCELL
 	{
 		using func_RemoveReference_t = void(RE::TESObjectCELL*, RE::TESObjectREFR*, bool);
-		REL::Relocation<func_RemoveReference_t>RemoveReference{ REL::ID(62697) };
+		inline REL::Relocation<func_RemoveReference_t>RemoveReference{ REL::ID(62697) };
 
 		using func_AddReference_t = double(RE::TESObjectCELL*, RE::TESObjectREFR*, bool, bool);
-		REL::Relocation<func_AddReference_t>AddReference{ REL::ID(63034) };
+		inline REL::Relocation<func_AddReference_t>AddReference{ REL::ID(63034) };
 
 		using func_GetIss_t = RE::TESImageSpace::ImageSpaceSettings*(RE::TESObjectCELL*);
-		REL::Relocation<func_GetIss_t>GetIss{ REL::ID(62677) };
+		inline REL::Relocation<func_GetIss_t>GetIss{ REL::ID(62677) };
 	}
 
 	namespace TES
 	{
 		using func_SetInteriorCell_t = void* (RE::TES*, RE::TESObjectCELL*, RE::NiPoint3*, bool);
-		REL::Relocation<func_SetInteriorCell_t>SetInteriorCell{ REL::ID(46037) };
+		inline REL::Relocation<func_SetInteriorCell_t>SetInteriorCell{ REL::ID(46037) };
 	}
 
 	namespace PlayerCamera
 	{
 		using func_SetShipFreeLook_t = void(RE::PlayerCamera*, bool);
-		REL::Relocation<func_SetShipFreeLook_t>SetShipFreeLook{ REL::ID(113437) };
+		inline REL::Relocation<func_SetShipFreeLook_t>SetShipFreeLook{ REL::ID(113437) };
 	}
 
 	namespace Sky
 	{
 		using func_SetActiveWeather = void(RE::Sky*, RE::BGSWeatherSettingsForm*, bool, bool);
-		REL::Relocation<func_SetActiveWeather>SetActiveWeather{ REL::ID(69299) };
+		inline REL::Relocation<func_SetActiveWeather>SetActiveWeather{ REL::ID(69299) };
 	}
 
 	namespace Spaceship 
@@ -232,66 +232,83 @@ namespace BobbyRE
 		std::byte pad2[0xC];
 		float unk;
 		uint32_t limitRays;
+		std::byte pad3[20];
+		float unused;
 	};
+
 	struct PlanetComponent
 	{
 		RE::NiMatrix3 rotation;
 		double X;
 		double Y;
 		double Z;
+		double W;
+		byte pad[120];
+		float radius;
+		float atmosphereHeight;
 	};
 
 	using func_updateStarDiscoveryStatus_t = void* (void*, uint32_t, bool);
-	REL::Relocation<func_updateStarDiscoveryStatus_t>updateStarDiscoveryStatus{ REL::ID(102650) };
+	inline REL::Relocation<func_updateStarDiscoveryStatus_t>updateStarDiscoveryStatus{ REL::ID(102650) };
 
 	using func_unkfunc_t = void* (RE::TESObjectREFR**, RE::BGSLocation*, RE::BGSLocation*);
-	REL::Relocation<func_unkfunc_t>unkfunc{ REL::ID(64046) };
+	inline REL::Relocation<func_unkfunc_t>unkfunc{ REL::ID(64046) };
 
 	using func_unkfunc2_t = void* ();
-	REL::Relocation<func_unkfunc2_t>unkfunc2{ REL::ID(62173) };
+	inline REL::Relocation<func_unkfunc2_t>unkfunc2{ REL::ID(62173) };
 
 	using func_unkfunc3_t = void* (void*, RE::TESObjectREFR*, RE::BGSLocation*, RE::BGSLocation*, bool);
-	REL::Relocation<func_unkfunc3_t>unkfunc3{ REL::ID(72938) };
+	inline REL::Relocation<func_unkfunc3_t>unkfunc3{ REL::ID(72938) };
 
 	using func_unkfunc4_t = void* (void*, uint32_t, void*);
-	REL::Relocation<func_unkfunc4_t>unkfunc4{ REL::ID(72962) };
+	inline REL::Relocation<func_unkfunc4_t>unkfunc4{ REL::ID(72962) };
 
 	using func_GetPlayerSystemPos_t = bool(double *, float *);
-	REL::Relocation<func_GetPlayerSystemPos_t>GetPlayerSystemPos{ REL::ID(52189) };
+	inline REL::Relocation<func_GetPlayerSystemPos_t>GetPlayerSystemPos{ REL::ID(52189) };
 
 	using func_IssLerp_t = void(RE::TESImageSpace::ImageSpaceSettings *, RE::TESImageSpace::ImageSpaceSettings*, RE::TESImageSpace::ImageSpaceSettings*, float);
-	REL::Relocation<func_IssLerp_t>IssLerp{ REL::ID(127271) };
+	inline REL::Relocation<func_IssLerp_t>IssLerp{ REL::ID(127271) };
 }
 
 namespace hooks
 {
 	using func_updateSpaceLocation_t = bool(uint32_t, BobbyRE::NiPoint4_double*, RE::NiMatrix3*);
-	func_updateSpaceLocation_t* original_updateSpaceLocation;
+	inline func_updateSpaceLocation_t* original_updateSpaceLocation;
 
 	using func_setSpacePlanetOrbit_t = void* (va_list, BobbyRE::DBInfo**, void*, uint32_t, double*, RE::NiMatrix3*, BobbyRE::NiPoint4_double*, uint32_t, bool);
-	func_setSpacePlanetOrbit_t* original_setSpacePlanetOrbit;
+	inline func_setSpacePlanetOrbit_t* original_setSpacePlanetOrbit;
 
 	using func_PCUpdate_t = void(RE::PlayerCharacter*, float);
-	func_PCUpdate_t* original_PCUpdate;
+	inline func_PCUpdate_t* original_PCUpdate;
 
 	using func_unkFunc_t = bool(int*);
-	func_unkFunc_t* original_unkFunc;
+	inline func_unkFunc_t* original_unkFunc;
 
 	using func_unkFunc2_t = void* (void*, RE::TESImageSpace::ImageSpaceSettings*);
-	func_unkFunc2_t* original_unkFunc2;
+	inline func_unkFunc2_t* original_unkFunc2;
 
 	using func_calcWeatherPct_t = float(RE::Sky*);
-	func_calcWeatherPct_t* original_calcWeatherPct;
+	inline func_calcWeatherPct_t* original_calcWeatherPct;
 
 	using func_forEachRef_t = void* (void*, void*, bool);
-	func_forEachRef_t* original_forEachRef;
+	inline func_forEachRef_t* original_forEachRef;
 
 	using func_endFrame_t = void(uintptr_t, void*);
-	func_endFrame_t* original_endFrame;
+	inline func_endFrame_t* original_endFrame;
 
 	using func_convertClouds_t = void* (void* ctx, std::byte* out, void* src);
-	func_convertClouds_t* original_convertClouds;
+	inline func_convertClouds_t* original_convertClouds;
 
 	using func_updateRelative_t = void* (void *, uintptr_t);
-	func_updateRelative_t* original_updateRelative;
+	inline func_updateRelative_t* original_updateRelative;
+
+	using func_minOrbitKm_t = double(uint32_t);
+	inline func_minOrbitKm_t *original_minOrbitKm;
+
+	using func_updateClouds_t = void* (byte* cloudMgr, RE::Sky* sky, RE::NiNode* follow, double a4);
+	inline func_updateClouds_t* original_updateClouds;
+
+	using func_cloudCardRenderExecute_t = std::uint64_t(byte*, void*, void*);
+	inline func_cloudCardRenderExecute_t* original_cloudCardRenderExecute;
+
 }

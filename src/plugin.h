@@ -26,6 +26,11 @@ struct takeoffState
 	RE::NiPoint3 endAnimAngle;
 	RE::NiPoint3 endAnimPos;
 	RE::NiPoint3 endFwd;
+	float maxZ;
 	float cloudDrop;
 	float issT;
+	float fakeHeight;
+	float origialCamZ;
 };
+
+inline takeoffState g_takeoffState;

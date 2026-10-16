@@ -1,5 +1,6 @@
 #pragma once
 #include "plugin.h"
+#include "BobbyRE/BobbyRE.h"
 
 inline float lerp(float a, float b, float t)
 {
@@ -15,10 +16,6 @@ void fadeWeather(float t, takeoffState* state)
 	state->weatherPctOverride = lerp(0.0, 1.0, t);
 }
 
-void dropClouds(float t, takeoffState* state)
-{
-	state->cloudDrop = lerp(0, 2500, t);
-}
 void fadeAtmospherics(float t, takeoffState* state, BobbyRE::atmosphereRenderSettings *atmosphereSettings)
 {
 	if (t > 1)
