@@ -1,5 +1,7 @@
 #pragma once
 
+#include "BobbyRE/BobbyRE.h"
+
 void OnMessage(SFSE::MessagingInterface::Message* message);
 
 enum TAKEOFF_STATE
@@ -31,6 +33,7 @@ struct takeoffState
 	float issT;
 	float fakeHeight;
 	float origialCamZ;
+	void* spaceLUT;
 };
 
 inline takeoffState g_takeoffState;

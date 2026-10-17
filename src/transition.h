@@ -24,6 +24,8 @@ void fadeAtmospherics(float t, takeoffState* state, BobbyRE::atmosphereRenderSet
 	float targetStarVisibility = 1.0;
 	state->atmosphereForm->settings.stars.disableSimulatedVisibility = 1;
 
+	atmosphereSettings->unk = lerp(0.8, 0.01, t);
+
 	//atmosphereSettings->atmosphereTopRadius = lerp(state->originalAtmosphereTopRadius, targetAtmo, 1 - pow(1 - t, 3));
 	state->atmosphereForm->settings.stars.staticVisibility = lerp(state->originalStarVisibility, targetStarVisibility, t);
 }

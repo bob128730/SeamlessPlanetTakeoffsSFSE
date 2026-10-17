@@ -3,7 +3,7 @@
 #include "transition.h"
 #include "atmosphereHeight.h"
 
-config settings;
+config g_settings;
 RE::BGSLocation* prevLocation;
 RE::BGSLocation* newLocation;
 RE::NiMatrix3 takeoffRot;
@@ -184,6 +184,16 @@ BobbyRE::atmosphereRenderSettings* getCurrentAtmosphereSettings()
 }
 //END OF SLOP :)
 
+void* getSpaceLut()
+{
+	RE::TextureUtils::TextureId id;
+	BobbyRE::GetResourceID(&id, "Textures\\Effects\\LUTs\\LGT_LUT_Space_curve.dds");
+
+	void* lut = nullptr;
+	BobbyRE::GetTextureDB(&id, &lut);
+	return lut;
+};
+
 class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent> 
 {
 	using func_playerFastTravel_t = bool(RE::PlayerCharacter*, void*, RE::NiPoint3*, RE::TESObjectCELL*, bool, bool, bool, bool, uint16_t);
@@ -225,6 +235,7 @@ class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent>
 					RE::TESObjectCELL* GalaxyCell = (RE::TESObjectCELL*)RE::TESObjectCELL::LookupByID(0x18343);
 					g_spaceImageSpaceSettings = BobbyRE::TESObjectCELL::GetIss(GalaxyCell);
 
+					g_takeoffState.spaceLUT = getSpaceLut();
 					togglePlanetDraw(true);
 				}
 			}
@@ -402,10 +413,10 @@ namespace hooks
 			}
 			else
 			{
-				fadeWeather(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength * 0.9f), &g_takeoffState);
-				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength), &g_takeoffState, atmosphereSettings);
+				fadeWeather(g_takeoffState.fadeTimer / (5 + g_settings.TakeoffExtensionLength * 0.9f), &g_takeoffState);
+				fadeAtmospherics(g_takeoffState.fadeTimer / (5 + g_settings.TakeoffExtensionLength), &g_takeoffState, atmosphereSettings);
 
-				g_takeoffState.issT = g_takeoffState.fadeTimer / (5 + settings.TakeoffExtensionLength);
+				g_takeoffState.issT = g_takeoffState.fadeTimer / (5 + g_settings.TakeoffExtensionLength);
 
 				g_takeoffState.fadeTimer += dt;
 
@@ -424,30 +435,30 @@ namespace hooks
 						g_takeoffState.endFwd = rot.Transpose() * RE::NiPoint3(0, 1, 0);
 					}
 
-					if (settings.TakeoffExtensionLength > 1.0)
+					if (g_settings.TakeoffExtensionLength > 1.0)
 					{
-						extendTakeoffAnim_rot(ship, (g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength);
-						if (((g_takeoffState.fadeTimer - 5) / settings.TakeoffExtensionLength) < 0.25)
+						extendTakeoffAnim_rot(ship, (g_takeoffState.fadeTimer - 5) / g_settings.TakeoffExtensionLength);
+						if (((g_takeoffState.fadeTimer - 5) / g_settings.TakeoffExtensionLength) < 0.25)
 						{
-							extendTakeoffAnim_pos(ship, (g_takeoffState.fadeTimer - 5) / (settings.TakeoffExtensionLength / 4));
+							extendTakeoffAnim_pos(ship, (g_takeoffState.fadeTimer - 5) / (g_settings.TakeoffExtensionLength / 4));
 						}
 						else
 						{
-							g_takeoffState.fakeHeight = lerp(0, atmosphereSettings->surfaceRadius * 0.05, ((g_takeoffState.fadeTimer - 5) - settings.TakeoffExtensionLength * 0.25) / (settings.TakeoffExtensionLength * 0.75));
+							g_takeoffState.fakeHeight = lerp(0, atmosphereSettings->surfaceRadius * 0.05, ((g_takeoffState.fadeTimer - 5) - g_settings.TakeoffExtensionLength * 0.25) / (g_settings.TakeoffExtensionLength * 0.75));
 							g_takeoffState.cloudDrop = g_takeoffState.fakeHeight;
 							atmosphereHeight::setStarHorizon(atmosphereSettings, g_takeoffState.fakeHeight);
 						}
 					}
 				}
 
-				if (g_takeoffState.fadeTimer > (5 + settings.TakeoffExtensionLength - 0.5) && settings.EnableLoadBlur)
+				if (g_takeoffState.fadeTimer > (5 + g_settings.TakeoffExtensionLength - 0.5) && g_settings.EnableLoadBlur)
 				{
-					fadeBlur((g_takeoffState.fadeTimer - (5 + settings.TakeoffExtensionLength - 0.5)) 
+					fadeBlur((g_takeoffState.fadeTimer - (5 + g_settings.TakeoffExtensionLength - 0.5)) 
 								/ 0.5
 								, true, &g_takeoffState);
 				}
 
-				if (g_takeoffState.fadeTimer > 5 + settings.TakeoffExtensionLength)
+				if (g_takeoffState.fadeTimer > 5 + g_settings.TakeoffExtensionLength)
 				{
 					g_takeoffState.state = TAKEOFF_LOAD_STARTED;
 					REX::INFO("fade complete");
@@ -491,7 +502,7 @@ namespace hooks
 			{
 				g_takeoffState.arrivalTimer += dt;
 				fadeStarGlow(g_takeoffState.arrivalTimer / 2.5, &g_takeoffState, spaceAtmosphereSettings);
-				if(settings.EnableLoadBlur)
+				if(g_settings.EnableLoadBlur)
 					fadeBlur((g_takeoffState.arrivalTimer - 0.3) / 2.2, false, &g_takeoffState);
 			}
 			else
@@ -553,6 +564,30 @@ namespace hooks
 			else
 			{
 				BobbyRE::IssLerp(settings, settings, g_spaceImageSpaceSettings, g_takeoffState.issT);
+
+				float a = g_surfaceImageSpaceSettings->SunAndSky.CelestialBodyIlluminanceScaleOverride.value;
+				settings->SunAndSky.CelestialBodyIlluminanceScaleOverride.value = lerp(a, a * 0.2, g_takeoffState.issT);
+
+				byte* mgr = *REL::Relocation<byte**>(REL::ID(883711)).get();  // imageSpaceManager
+				float* weights = (float*)(mgr + 0x410);
+				void** slots = (void**)(mgr + 0x420);
+
+				if (g_takeoffState.fadeTimer > 5)
+				{
+					float t = min(((g_takeoffState.fadeTimer - 5) / g_settings.TakeoffExtensionLength), 1);
+
+					for (int i = 0; i < 3; ++i)
+						weights[i] *= (1.0f - t);
+
+					void* old = slots[3];
+					if (old != g_takeoffState.spaceLUT) {
+						_InterlockedIncrement((volatile long*)((byte*)g_takeoffState.spaceLUT + 0x14));
+						slots[3] = g_takeoffState.spaceLUT;
+						if (old)
+							(*(void(**)(void*))(*(uintptr_t*)old + 8))(old);
+					}
+					weights[3] = t;
+				}
 			}
 		}
 		if (g_takeoffState.state != NOT_STARTED)
@@ -659,7 +694,7 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 	if (message->type == SFSE::MessagingInterface::kPostDataLoad) 
 	{
 		REX::INFO("Init");
-		settings.load();
+		g_settings.load();
 		g_takeoffState = {};
 
 		TakeOffEventSink* TakeOffSink = new TakeOffEventSink();
@@ -682,7 +717,7 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 
 		REL::WriteSafeData(shouldStartLoadScreen, jmp);
 
-		if (settings.DisableTakeOffCam) 
+		if (g_settings.DisableTakeOffCam) 
 		{
 			uintptr_t initiateTakeOffSequence = REL::Relocation<uintptr_t>(REL::ID(119908)).address();
 			byte* shouldStartTakeOffCam = (byte*)(initiateTakeOffSequence + 0x1c9);

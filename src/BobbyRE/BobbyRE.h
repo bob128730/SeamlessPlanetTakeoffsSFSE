@@ -102,6 +102,12 @@ namespace BobbyRE
 
 	};
 
+	struct LUTSet
+	{
+		float weight[4];
+		void* lut[4];
+	};
+
 	struct DBLookupContext
 	{
 		uintptr_t pages[4];
@@ -268,6 +274,12 @@ namespace BobbyRE
 
 	using func_IssLerp_t = void(RE::TESImageSpace::ImageSpaceSettings *, RE::TESImageSpace::ImageSpaceSettings*, RE::TESImageSpace::ImageSpaceSettings*, float);
 	inline REL::Relocation<func_IssLerp_t>IssLerp{ REL::ID(127271) };
+
+	using func_GetResourceID_t = void(RE::TextureUtils::TextureId *, const char *);
+	inline REL::Relocation<func_GetResourceID_t>GetResourceID{ REL::ID(137049) };
+
+	using func_GetTextureDB_t = void(RE::TextureUtils::TextureId*, void **);
+	inline REL::Relocation<func_GetTextureDB_t>GetTextureDB{ REL::ID(127263) };
 }
 
 namespace hooks
