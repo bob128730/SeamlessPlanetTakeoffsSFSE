@@ -286,6 +286,9 @@ namespace hooks
 			for (int i = 0; i < 4; ++i) {
 				std::byte* p = out + 0x200 + 112 * i;
 
+				*(float*)(p + 0x5c) = lerp(1, 0, g_takeoffState.fadeTimer / 5); // alpha
+
+				// whack things happen if i drop the height on its own
 				float* elevation = (float*)(p + 0x28);
 				*elevation = max((*elevation - dZ - drop), 1.0);
 			}
@@ -297,14 +300,25 @@ namespace hooks
 		return result;
 	}
 
+	thread_local byte* t_pass;
 	uint64_t hook_cloudCardRenderExecute(byte* pass, void* ctx, void* a3)
 	{
-		return 0;
+		t_pass = pass;
 		uint64_t result = original_cloudCardRenderExecute(pass, ctx, a3);
-		*(float*)(pass + 440) = g_takeoffState.cloudDrop;
+		*(float*)(pass + 440) += g_takeoffState.cloudDrop;
+		t_pass = nullptr;
 		return result;
 	}
 	
+	void* hook_cloudAllocConstants(uint64_t* set, uint16_t slot, void* alloc, void* a4, int32_t size)
+	{
+		if (t_pass && g_takeoffState.state == TAKEOFF_ANIM_STARTED && g_takeoffState.cloudDrop != 0)
+		{
+			*(float *)(t_pass + 440) += g_takeoffState.cloudDrop;
+		}
+		return atmosphereHeight::AllocConstants(set, slot, alloc, a4, size);
+	}
+
 	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot)
 	{
 		if (objectFormID != RE::PlayerCharacter::GetSingleton()->GetSpaceship()->formID)
@@ -683,6 +697,8 @@ namespace hooks
 		auto* vt = REL::Relocation<std::uintptr_t*>(REL::ID(496810)).get();   // CloudCardsRenderPass vftable
 		original_cloudCardRenderExecute = (func_cloudCardRenderExecute_t*)(vt[7]);                      // 0x142B0CB90
 		REL::WriteSafeData((std::uintptr_t)(vt + 7), &hook_cloudCardRenderExecute);
+
+		(atmosphereHeight::func_allocConst_t*)tramp.write_call<5>(REL::ID(145432).address() + 0x5A7, hook_cloudAllocConstants);
 
 		atmosphereHeight::hooks::install(&tramp);
 	}
