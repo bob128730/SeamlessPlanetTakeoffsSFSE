@@ -145,8 +145,9 @@ namespace BobbyRE
 			uint32_t gap6C;
 			uint32_t dword70;
 			uint32_t gap74;
-			void* qword78;
-			uint64_t qword80;
+			uint32_t qword78;
+			uint32_t planetID;
+			uint64_t dword84;
 			RE::BSFixedString char88;
 			uint64_t qword90;
 			uint64_t qword98;
@@ -254,6 +255,13 @@ namespace BobbyRE
 		float atmosphereHeight;
 	};
 
+	struct RefSystemTransform
+	{
+		BobbyRE::NiPoint4_double pos;   // 00
+		RE::NiMatrix3            rot;   // 20
+		bool                     valid; // 50
+	};
+
 	using func_updateStarDiscoveryStatus_t = void* (void*, uint32_t, bool);
 	inline REL::Relocation<func_updateStarDiscoveryStatus_t>updateStarDiscoveryStatus{ REL::ID(102650) };
 
@@ -322,5 +330,11 @@ namespace hooks
 
 	using func_cloudCardRenderExecute_t = std::uint64_t(byte*, void*, void*);
 	inline func_cloudCardRenderExecute_t* original_cloudCardRenderExecute;
+
+	using func_getRefSystemTransform_t =  void* (BobbyRE::RefSystemTransform*, RE::TESObjectREFR*);
+	inline func_getRefSystemTransform_t* original_getRefSystemTransform;
+
+	using func_getRefSpaceCellLocal_t = void* (RE::TESObjectREFR*, RE::TESObjectCELL**, float*, RE::NiMatrix3*, bool);
+	inline func_getRefSpaceCellLocal_t* original_getRefSpaceCellLocal;
 
 }

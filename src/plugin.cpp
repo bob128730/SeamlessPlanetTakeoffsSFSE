@@ -16,6 +16,7 @@ RE::TESImageSpace::ImageSpaceSettings* g_surfaceImageSpaceSettings;
 RE::TESImageSpace::ImageSpaceSettings* g_originalSurfaceImageSpaceSettings;
 
 BobbyRE::NiPoint4_double cachedPos;
+BobbyRE::NiPoint4_double g_targetCellPos;
 int g_index;
 
 bool g_frameDraw = true;
@@ -194,6 +195,22 @@ void* getSpaceLut()
 	return lut;
 };
 
+BobbyRE::NiPoint4_double computeTargetSpacePos(float offset)
+{
+	uint32_t planetID = BobbyRE::BGSPlanet::Manager::GetSingleton()->planetID;
+	BobbyRE::PlanetComponent* c = getPlanetComponent(planetID, nullptr);
+	double p[4]; float up[3];
+	BobbyRE::GetPlayerSystemPos(p, up);
+	const double rCutD = double(c->radius) + g_takeoffState.maxZ + g_takeoffState.fakeHeight - 50000.0;
+	const double r = rCutD + offset;
+
+	BobbyRE::NiPoint4_double result;
+	result.x = c->X + up[0] * r;
+	result.y = c->Y + up[1] * r;
+	result.z = c->Z + up[2] * r;
+	result.w = c->W;
+	return result;
+}
 class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent> 
 {
 	using func_playerFastTravel_t = bool(RE::PlayerCharacter*, void*, RE::NiPoint3*, RE::TESObjectCELL*, bool, bool, bool, bool, uint16_t);
@@ -319,6 +336,55 @@ namespace hooks
 		return atmosphereHeight::AllocConstants(set, slot, alloc, a4, size);
 	}
 
+	BobbyRE::PlanetComponent* planetComponent;
+	float rCut;
+	bool g_encounterMoved;
+	double        g_encounterDelta[3];
+	RE::NiMatrix3 g_encounterRot;
+
+	//-------------------------------------------------------------------------------------------------
+	// SLOP :(
+	void* hook_encounterSpawnPos(BobbyRE::RefSystemTransform* t, RE::TESObjectREFR* ref)
+	{
+		void* result = original_getRefSystemTransform(t, ref);
+		g_encounterMoved = false;
+
+		if (g_takeoffState.state != NOT_STARTED && t->valid &&
+			ref == RE::PlayerCharacter::GetSingleton()->GetSpaceship())
+		{
+			const double dx = g_targetCellPos.x - t->pos.x;
+			const double dy = g_targetCellPos.y - t->pos.y;
+			const double dz = g_targetCellPos.z - t->pos.z;
+			const double d = sqrt(dx * dx + dy * dy + dz * dz);
+			const double s = d > 0.0 ? 60000.0 / d : 0.0;
+
+			g_encounterDelta[0] = dx * s;
+			g_encounterDelta[1] = dy * s;
+			g_encounterDelta[2] = dz * s;
+			t->pos.x += g_encounterDelta[0];
+			t->pos.y += g_encounterDelta[1];
+			t->pos.z += g_encounterDelta[2];
+			g_encounterRot = t->rot;
+			g_encounterMoved = true;
+		}
+		return result;
+	}
+
+	void* hook_encounterParentOffset(RE::TESObjectREFR* ref, RE::TESObjectCELL** cell, float* localPos, RE::NiMatrix3* localRot, bool useGivenCell)
+	{
+		void* result = original_getRefSpaceCellLocal(ref, cell, localPos, localRot, useGivenCell);
+		if (g_encounterMoved)
+		{
+			for (int i = 0; i < 3; ++i)
+				localPos[i] += (float)(g_encounterRot[i][0] * g_encounterDelta[0] +
+					g_encounterRot[i][1] * g_encounterDelta[1] +
+					g_encounterRot[i][2] * g_encounterDelta[2]);
+			g_encounterMoved = false;
+		}
+		return result;
+	}
+	// END OF SLOP :)
+	//-------------------------------------------------------------------------------------------------
 	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot)
 	{
 		if (objectFormID != RE::PlayerCharacter::GetSingleton()->GetSpaceship()->formID)
@@ -327,13 +393,7 @@ namespace hooks
 			{
 				REX::INFO("Moving space cell location");
 
-				double newPos[4];
-				float newRot[3];
-				BobbyRE::GetPlayerSystemPos(newPos, newRot);
-
-				pos->x = newPos[0];
-				pos->y = newPos[1];
-				pos->z = newPos[2];
+				*pos = computeTargetSpacePos(0);
 			}
 			else
 			{
@@ -360,25 +420,15 @@ namespace hooks
 			RE::NiPoint3 localNorth(-sin(lat) * cos(lon), -sin(lat) * sin(lon), cos(lat));
 			RE::NiPoint3 localEast(-sin(lon), cos(lon), 0);
 
-			BobbyRE::PlanetComponent* planetComponent = getPlanetComponent(planetFormID, *DBInfo);
+			planetComponent = getPlanetComponent(planetFormID, *DBInfo);
 			RE::NiMatrix3 planetRot = planetComponent->rotation;
 
-			float R = planetComponent->radius;
-			float rCut = R + g_takeoffState.maxZ + g_takeoffState.fakeHeight - 50000;
-
-			REX::INFO("Planet radius: {}", R);
 			RE::NiPoint3 worldUp = planetRot.Transpose() * localUp;
 			RE::NiPoint3 worldNorth = planetRot.Transpose() * localNorth;
 			RE::NiPoint3 worldEast = planetRot.Transpose() * localEast;
 
 			REX::INFO("planetLocation: {}, {}, {}", planetLocation[0], planetLocation[1], planetLocation[2]);
-			double newPos[4];
-			float newRot[3];
-			BobbyRE::GetPlayerSystemPos(newPos, newRot);
-
-			pos->x = planetComponent->X + newRot[0] * rCut;
-			pos->y = planetComponent->Y + newRot[1] * rCut;
-			pos->z = planetComponent->Z + newRot[2] * rCut;
+			*pos = computeTargetSpacePos(0);
 
 			cachedPos = *pos;
 
@@ -484,6 +534,7 @@ namespace hooks
 		{
 			g_frameDraw = false;
 			g_takeoffState.maxZ = player->GetSpaceship()->data.location.z;
+			g_targetCellPos = computeTargetSpacePos(10000);
 			manualLoadSystem(player->GetSpaceship());
 			RE::TES::GetSingleton()->sky->mode = 0;
 			g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
@@ -684,6 +735,11 @@ namespace hooks
 		original_unkFunc2 = (func_unkFunc2_t*)tramp.write_call<5>(unkFunc2Call, hook_unkFunc2);
 		original_endFrame = (func_endFrame_t*)tramp.write_call<5>(endFrameCall, hook_endFrame);
 
+		uintptr_t spawnSpaceCellAtRef = REL::Relocation<uintptr_t>(REL::ID(57645)).address();
+		original_getRefSystemTransform = (func_getRefSystemTransform_t*)tramp.write_call<5>(spawnSpaceCellAtRef + 0x58, hook_encounterSpawnPos);
+
+		original_getRefSpaceCellLocal = (func_getRefSpaceCellLocal_t*)tramp.write_call<5>(spawnSpaceCellAtRef + 0x17A, hook_encounterParentOffset);
+		
 		original_convertClouds = (func_convertClouds_t*)tramp.write_call<5>(convertCloudsCall, hook_convertClouds);
 		tramp.write_call<5>(convertCloudsCall2, hook_convertClouds);
 
