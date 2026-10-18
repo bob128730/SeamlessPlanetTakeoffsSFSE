@@ -502,15 +502,32 @@ namespace hooks
 					if (g_settings.TakeoffExtensionLength > 1.0)
 					{
 						extendTakeoffAnim_rot(ship, (g_takeoffState.fadeTimer - 5) / g_settings.TakeoffExtensionLength);
+						byte* shaker = *REL::Relocation<byte**>(REL::ID(938713));
+						byte* perlin = *reinterpret_cast<byte**>(shaker + 0x70);
+
 						if (((g_takeoffState.fadeTimer - 5) / g_settings.TakeoffExtensionLength) < 0.25)
 						{
-							extendTakeoffAnim_pos(ship, (g_takeoffState.fadeTimer - 5) / (g_settings.TakeoffExtensionLength / 4));
+							float t = (g_takeoffState.fadeTimer - 5) / (g_settings.TakeoffExtensionLength / 4);
+							extendTakeoffAnim_pos(ship, t);
+
+							if (g_settings.EnableCameraShake)
+							{
+								*(float*)(shaker + 0x7C) = lerp(0, 50, t);
+								*(double*)(perlin + 0x10) = lerp(0, 16, t);
+							}
 						}
 						else
 						{
-							g_takeoffState.fakeHeight = lerp(0, atmosphereSettings->surfaceRadius * 0.05, ((g_takeoffState.fadeTimer - 5) - g_settings.TakeoffExtensionLength * 0.25) / (g_settings.TakeoffExtensionLength * 0.75));
+							float t = ((g_takeoffState.fadeTimer - 5) - g_settings.TakeoffExtensionLength * 0.25) / (g_settings.TakeoffExtensionLength * 0.75);
+							g_takeoffState.fakeHeight = lerp(0, atmosphereSettings->surfaceRadius * 0.05, t);
 							g_takeoffState.cloudDrop = g_takeoffState.fakeHeight;
 							atmosphereHeight::setStarHorizon(atmosphereSettings, g_takeoffState.fakeHeight);
+
+							if (g_settings.EnableCameraShake)
+							{
+								*(float*)(shaker + 0x7C) = lerp(50, 0, t);
+								*(double*)(perlin + 0x10) = lerp(16, 0, t);
+							}
 						}
 					}
 				}

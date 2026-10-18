@@ -11,13 +11,15 @@ struct config
 			return;
 		}
 		this->DisableTakeOffCam = reader.GetBoolean("Config", "DisableTakeOffCam", true);
-		this->EnableLoadBlur = reader.GetBoolean("Config", "EnableLoadBlur", true);
-		this->TakeoffExtensionLength = reader.GetFloat("Config", "TakeoffExtensionLength", 5.6f);
-		if (this->TakeoffExtensionLength == 0)
-			this->TakeoffExtensionLength = 0.01f;
+		this->EnableLoadBlur = reader.GetBoolean("Config", "EnableLoadBlur", false);
+		this->EnableCameraShake = reader.GetBoolean("Config", "EnableCameraShake", true);
+		this->TakeoffExtensionLength = reader.GetFloat("Config", "TakeoffExtensionLength", 7.6f);
+		if (this->TakeoffExtensionLength < 4)
+			this->TakeoffExtensionLength = 4.0f;
 	}
 
 	bool DisableTakeOffCam = 1;
-	bool EnableLoadBlur = true;
-	float TakeoffExtensionLength = 5.6f;
+	bool EnableLoadBlur = false;
+	bool EnableCameraShake = true;
+	float TakeoffExtensionLength = 7.6f;
 };
