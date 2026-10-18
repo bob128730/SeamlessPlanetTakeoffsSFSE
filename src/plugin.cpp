@@ -302,8 +302,7 @@ namespace hooks
 
 			for (int i = 0; i < 4; ++i) {
 				std::byte* p = out + 0x200 + 112 * i;
-
-				*(float*)(p + 0x5c) = lerp(1, 0, g_takeoffState.fadeTimer / 5); // alpha
+				*(float*)(p + 0x5c) = lerp(0.5, 0, g_takeoffState.fadeTimer / 5); // alpha
 
 				// whack things happen if i drop the height on its own
 				float* elevation = (float*)(p + 0x28);
@@ -519,7 +518,7 @@ namespace hooks
 						else
 						{
 							float t = ((g_takeoffState.fadeTimer - 5) - g_settings.TakeoffExtensionLength * 0.25) / (g_settings.TakeoffExtensionLength * 0.75);
-							g_takeoffState.fakeHeight = lerp(0, atmosphereSettings->surfaceRadius * 0.05, t);
+							g_takeoffState.fakeHeight = lerp(0, atmosphereSettings->surfaceRadius * 0.06, t);
 							g_takeoffState.cloudDrop = g_takeoffState.fakeHeight;
 							atmosphereHeight::setStarHorizon(atmosphereSettings, g_takeoffState.fakeHeight);
 
@@ -711,6 +710,15 @@ namespace hooks
 		return original_setFlightInputs(in, a2);
 	}
 
+	void hook_fade(bool, bool, float, bool, float, void* cb, bool, std::uint32_t)
+	{
+		if (!cb)
+			return;
+		uintptr_t *vtbl = *(uintptr_t **)(cb);
+		reinterpret_cast<void (*)(void*)>(vtbl[1])(cb);
+		reinterpret_cast<void (*)(void*, bool)>(vtbl[0])(cb, true);
+	}
+
 	void install() {
 		uintptr_t addr1 = REL::Relocation<uintptr_t>(REL::ID(97772)).address();
 		uintptr_t addr2 = REL::Relocation<uintptr_t>(REL::ID(57659)).address();
@@ -786,6 +794,7 @@ namespace hooks
 		REL::WriteSafeData((std::uintptr_t)(vt + 7), &hook_cloudCardRenderExecute);
 
 		(atmosphereHeight::func_allocConst_t*)tramp.write_call<5>(REL::ID(145432).address() + 0x5A7, hook_cloudAllocConstants);
+		tramp.write_call<5>(REL::ID(93823).address() + 0x78, hook_fade);
 
 		original_setFlightInputs = (func_setFlightInputs_t *)tramp.write_call<5>(REL::ID(119859).address() + 0x572, hook_setFlightInputs);
 
@@ -835,6 +844,8 @@ void OnMessage(SFSE::MessagingInterface::Message* message)
 		
 			REL::WriteSafeData(inputLayerCall, nopcall);
 			REL::WriteSafeData(hudModePushCall, nopcall);
+
+			REL::WriteSafeData(REL::ID(93824).address() + 0x1AF, nopcall);
 		}
 
 		hooks::install();
