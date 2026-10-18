@@ -689,18 +689,6 @@ namespace hooks
 		return original_calcWeatherPct(sky);
 	}
 
-	double hook_minOrbitKm(uint32_t planetID)
-	{
-		//if (g_takeoffState.state != NOT_STARTED)
-		//{
-			if (planetID != 0 && planetID == g_planetFormID)
-			{
-				return 0.0;
-			}
-		//}
-		return original_minOrbitKm(planetID);
-	}
-
 	bool hook_setFlightInputs(float* in, void* a2)
 	{
 		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED && g_takeoffState.fadeTimer > 4.9)
@@ -783,11 +771,6 @@ namespace hooks
 		tramp.write_call<5>(convertCloudsCall2, hook_convertClouds);
 
 		original_updateRelative = (func_updateRelative_t*)tramp.write_call<5>(updateRelative, hook_updateRelative);
-		
-		func_minOrbitKm_t **slot = REL::Relocation<func_minOrbitKm_t**>{ REL::ID(1141031) }.get();
-		original_minOrbitKm = *slot ? *slot
-			: REL::Relocation<func_minOrbitKm_t*>{ REL::ID(1015279) }.get();
-		*slot = &hook_minOrbitKm;
 
 		auto* vt = REL::Relocation<std::uintptr_t*>(REL::ID(496810)).get();   // CloudCardsRenderPass vftable
 		original_cloudCardRenderExecute = (func_cloudCardRenderExecute_t*)(vt[7]);                      // 0x142B0CB90
