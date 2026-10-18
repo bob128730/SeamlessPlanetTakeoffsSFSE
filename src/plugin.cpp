@@ -532,14 +532,19 @@ namespace hooks
 		}
 		case TAKEOFF_LOAD_STARTED:
 		{
+			RE::TESObjectREFR* ship = player->GetSpaceship();
+
 			g_frameDraw = false;
-			g_takeoffState.maxZ = player->GetSpaceship()->data.location.z;
+
+			g_takeoffState.maxZ = ship->data.location.z;
 			g_targetCellPos = computeTargetSpacePos(10000);
-			manualLoadSystem(player->GetSpaceship());
+
+			manualLoadSystem(ship);
 			RE::TES::GetSingleton()->sky->mode = 0;
 			g_takeoffState.state = TAKEOFF_LOAD_COMPLETE;
 			togglePlanetDraw(false);
 			g_takeoffState.fakeHeight = 0;
+
 			break;
 		}
 		case TAKEOFF_LOAD_COMPLETE:
@@ -680,6 +685,15 @@ namespace hooks
 		return original_minOrbitKm(planetID);
 	}
 
+	bool hook_setFlightInputs(float* in, void* a2)
+	{
+		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED && g_takeoffState.fadeTimer > 4.9)
+		{
+			in[4] = 2;
+		}
+		return original_setFlightInputs(in, a2);
+	}
+
 	void install() {
 		uintptr_t addr1 = REL::Relocation<uintptr_t>(REL::ID(97772)).address();
 		uintptr_t addr2 = REL::Relocation<uintptr_t>(REL::ID(57659)).address();
@@ -755,6 +769,8 @@ namespace hooks
 		REL::WriteSafeData((std::uintptr_t)(vt + 7), &hook_cloudCardRenderExecute);
 
 		(atmosphereHeight::func_allocConst_t*)tramp.write_call<5>(REL::ID(145432).address() + 0x5A7, hook_cloudAllocConstants);
+
+		original_setFlightInputs = (func_setFlightInputs_t *)tramp.write_call<5>(REL::ID(119859).address() + 0x572, hook_setFlightInputs);
 
 		atmosphereHeight::hooks::install(&tramp);
 	}

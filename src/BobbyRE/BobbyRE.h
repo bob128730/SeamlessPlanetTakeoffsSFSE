@@ -59,6 +59,9 @@ namespace BobbyRE
 			RE::BGSLocation *fromLocation2;
 			uint32_t unk5;
 		};
+
+		using func_setBoosting_t = void(RE::TESObjectREFR *, bool);
+		inline REL::Relocation<func_setBoosting_t>setBoosting{ REL::ID(57392) };
 	}
 
 	struct PositionPlayerEvent 
@@ -336,5 +339,8 @@ namespace hooks
 
 	using func_getRefSpaceCellLocal_t = void* (RE::TESObjectREFR*, RE::TESObjectCELL**, float*, RE::NiMatrix3*, bool);
 	inline func_getRefSpaceCellLocal_t* original_getRefSpaceCellLocal;
+
+	using func_setFlightInputs_t = bool(float*, void*);
+	inline func_setFlightInputs_t* original_setFlightInputs;
 
 }
