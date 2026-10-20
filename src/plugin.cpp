@@ -386,9 +386,9 @@ namespace hooks
 	//-------------------------------------------------------------------------------------------------
 	bool hook_updateSpaceLocation(uint32_t objectFormID, BobbyRE::NiPoint4_double* pos, RE::NiMatrix3* rot)
 	{
-		if (objectFormID != RE::PlayerCharacter::GetSingleton()->GetSpaceship()->formID)
+		if (g_takeoffState.state != NOT_STARTED && !markedCell)
 		{
-			if (g_takeoffState.state != NOT_STARTED && !markedCell)
+			if (objectFormID != RE::PlayerCharacter::GetSingleton()->GetSpaceship()->formID)
 			{
 				REX::INFO("Moving space cell location");
 
@@ -551,6 +551,8 @@ namespace hooks
 			RE::TESObjectREFR* ship = player->GetSpaceship();
 
 			g_frameDraw = false;
+			g_takeoffState.planetAtmoIndex = g_index;
+			g_takeoffState.glowZeroed = false;
 
 			g_takeoffState.maxZ = ship->data.location.z;
 			g_targetCellPos = computeTargetSpacePos(10000);
@@ -565,22 +567,17 @@ namespace hooks
 		}
 		case TAKEOFF_LOAD_COMPLETE:
 		{
-			if (g_takeoffState.arrivalTimer < 0.05)
+			if (!g_takeoffState.glowZeroed)
 			{
-				g_takeoffState.arrivalTimer += dt;
-				if (g_takeoffState.arrivalTimer > 0.05)
-					g_frameDraw = true;
-			}
-			else if (g_takeoffState.arrivalTimer < 0.3)
-			{
-				g_takeoffState.arrivalTimer += dt;
-				if (g_takeoffState.arrivalTimer > 0.3)
+				if (g_takeoffState.planetAtmoIndex != g_index)
 				{
 					spaceAtmosphereSettings = getAtmosphereSettings(g_index);
 
 					g_takeoffState.originalStarGlow = spaceAtmosphereSettings->surfaceRadius;
 					spaceAtmosphereSettings->surfaceRadius = 0;
 					RE::TES::GetSingleton()->sky->mode = 1;
+					g_takeoffState.glowZeroed = true;
+					g_frameDraw = true;
 					REX::INFO("Star glow fade start");
 				}
 			}
@@ -636,7 +633,7 @@ namespace hooks
 
 	void *hook_unkFunc2(void* a1, RE::TESImageSpace::ImageSpaceSettings *settings)
 	{
-		if (g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
+		if (g_takeoffState.state != NOT_STARTED)
 		{
 			if (!g_surfaceImageSpaceSettings)
 			{
@@ -649,6 +646,11 @@ namespace hooks
 			}
 			else
 			{
+				if (g_takeoffState.state == TAKEOFF_LOAD_COMPLETE)
+				{
+					if (g_takeoffState.arrivalTimer != 0)
+						return original_unkFunc2(a1, settings);
+				}
 				BobbyRE::IssLerp(settings, settings, g_spaceImageSpaceSettings, g_takeoffState.issT);
 
 				float a = g_surfaceImageSpaceSettings->SunAndSky.CelestialBodyIlluminanceScaleOverride.value;

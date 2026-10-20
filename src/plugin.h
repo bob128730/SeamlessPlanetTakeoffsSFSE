@@ -34,6 +34,8 @@ struct takeoffState
 	float fakeHeight;
 	float origialCamZ;
 	void* spaceLUT;
+	uint32_t planetAtmoIndex;
+	bool glowZeroed;
 };
 
 inline takeoffState g_takeoffState;
