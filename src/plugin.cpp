@@ -18,6 +18,7 @@ RE::TESImageSpace::ImageSpaceSettings* g_originalSurfaceImageSpaceSettings;
 BobbyRE::NiPoint4_double cachedPos;
 BobbyRE::NiPoint4_double g_targetCellPos;
 int g_index;
+uint32_t g_skyStarID;
 
 bool g_frameDraw = true;
 
@@ -211,6 +212,47 @@ BobbyRE::NiPoint4_double computeTargetSpacePos(float offset)
 	result.w = c->W;
 	return result;
 }
+
+RE::NiMatrix3 getSkyRot(const RE::NiMatrix3& planetRot)
+{
+	double sp[4]; float upf[3];
+	BobbyRE::GetPlayerSystemPos(sp, upf);
+	RE::NiPoint3 up(upf[0], upf[1], upf[2]);
+	up.Unitize();
+	RE::NiPoint3 r1(planetRot[1][0], planetRot[1][1], planetRot[1][2]);
+	RE::NiPoint3 r2(planetRot[2][0], planetRot[2][1], planetRot[2][2]);
+	RE::NiPoint3 east, north;
+
+	if (fabsf(up.Dot(r2)) < 0.5f)
+	{
+		east = r2.UnitCross(up);
+		north = up.Cross(east);
+	}
+	else
+	{
+		north = up.UnitCross(r1);
+		east = north.Cross(up);
+
+		if (BobbyRE::PlanetComponent* star = g_skyStarID ? getPlanetComponent(g_skyStarID, nullptr) : nullptr)
+		{
+			RE::NiPoint3 s((float)(star->X - sp[0]), (float)(star->Y - sp[1]), (float)(star->Z - sp[2]));
+			s.Unitize();
+			RE::NiPoint3 t = s - up * s.Dot(up);
+			if (t.SqrLength() > 1e-8f)
+			{
+				t.Unitize();
+				east = t * (2.0f * east.Dot(t)) - east;
+				north = up.Cross(east);
+			}
+		}
+	}
+
+	return RE::NiMatrix3(
+		{ east.x,  east.y,  east.z,  0 },
+		{ north.x, north.y, north.z, 0 },
+		{ up.x,    up.y,    up.z,    0 });
+}
+
 class TakeOffEventSink : public RE::BSTEventSink<RE::Spaceship::TakeOffEvent> 
 {
 	using func_playerFastTravel_t = bool(RE::PlayerCharacter*, void*, RE::NiPoint3*, RE::TESObjectCELL*, bool, bool, bool, bool, uint16_t);
@@ -279,6 +321,13 @@ namespace hooks
 	bool hook_updateRelative(void* ctx, uintptr_t entry)
 	{
 		bool r = original_updateRelative(ctx, entry);
+
+		if (r && g_takeoffState.state == TAKEOFF_ANIM_STARTED)
+		{
+			uint32_t id = *(uint32_t*)(entry + 0x50);
+			if (BobbyRE::PlanetComponent* c = getPlanetComponent(id, nullptr); c && c->bodyType == 1)
+				g_skyStarID = id;
+		}
 
 		if ((g_takeoffState.state == TAKEOFF_ANIM_STARTED || g_takeoffState.state == TAKEOFF_LOAD_STARTED)
 			&& RE::TES::GetSingleton()->sky->planetID == *(uint32_t*)(entry + 0x50))
@@ -411,47 +460,14 @@ namespace hooks
 		if (g_takeoffState.state == TAKEOFF_LOAD_STARTED)
 		{	
 			BobbyRE::BGSPlanet::Manager* planetManager = BobbyRE::BGSPlanet::Manager::GetSingleton();
-
-			float lat = planetManager->tileLatitude;
-			float lon = planetManager->tileLongitude;
-
-			RE::NiPoint3 localUp(cos(lat) * cos(lon), cos(lat) * sin(lon), sin(lat));
-			RE::NiPoint3 localNorth(-sin(lat) * cos(lon), -sin(lat) * sin(lon), cos(lat));
-			RE::NiPoint3 localEast(-sin(lon), cos(lon), 0);
-
 			planetComponent = getPlanetComponent(planetFormID, *DBInfo);
-			RE::NiMatrix3 planetRot = planetComponent->rotation;
 
-			RE::NiPoint3 worldUp = planetRot.Transpose() * localUp;
-			RE::NiPoint3 worldNorth = planetRot.Transpose() * localNorth;
-			RE::NiPoint3 worldEast = planetRot.Transpose() * localEast;
-
-			REX::INFO("planetLocation: {}, {}, {}", planetLocation[0], planetLocation[1], planetLocation[2]);
 			*pos = computeTargetSpacePos(0);
-
 			cachedPos = *pos;
 
 			REX::INFO("final pos: {}, {}, {}", pos->x, pos->y, pos->z);
 
-			RE::NiMatrix3 surfaceMat(
-				{ worldEast.x,  worldEast.y,  worldEast.z,  0 },
-				{ worldNorth.x, worldNorth.y, worldNorth.z, 0 },
-				{ worldUp.x,    worldUp.y,    worldUp.z,    0 }
-			);
-
-			RE::NiMatrix3 flatRot(
-				{ landedRot[0][0], landedRot[0][1], 0, 0 },
-				{ landedRot[1][0], landedRot[1][1], 0, 0 },
-				{ 0, 0, 1, 0 }
-			);
-
-			RE::NiMatrix3 delta = takeoffRot * flatRot.Transpose();
-
-			RE::NiPoint3 x = landedRot * RE::NiPoint3(1, 0, 0);
-			RE::NiPoint3 y = landedRot * RE::NiPoint3(0, 1, 0);
-			RE::NiPoint3 z = landedRot * RE::NiPoint3(0, 0, 1);
-
-			*rot = delta * flatRot * surfaceMat;
+			*rot = takeoffRot * getSkyRot(planetComponent->rotation);
 		}
 		return result;
 	}
@@ -604,6 +620,7 @@ namespace hooks
 				g_takeoffState.atmosphereForm->settings.stars.staticVisibility = g_takeoffState.originalStarVisibility;
 				g_takeoffState.atmosphereForm->settings.stars.disableSimulatedVisibility = g_takeoffState.originalDisableSimulatedVisibility;
 
+				g_skyStarID = 0;
 				if (g_surfaceImageSpaceSettings)
 				{
 					free((void *)g_surfaceImageSpaceSettings);
@@ -773,6 +790,7 @@ namespace hooks
 		tramp.write_call<5>(convertCloudsCall2, hook_convertClouds);
 
 		original_updateRelative = (func_updateRelative_t*)tramp.write_call<5>(updateRelative, hook_updateRelative);
+		tramp.write_call<5>(REL::ID(69417).address() + 0x59, hook_updateRelative);
 
 		auto* vt = REL::Relocation<std::uintptr_t*>(REL::ID(496810)).get();   // CloudCardsRenderPass vftable
 		original_cloudCardRenderExecute = (func_cloudCardRenderExecute_t*)(vt[7]);                      // 0x142B0CB90

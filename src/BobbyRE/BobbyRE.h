@@ -256,6 +256,8 @@ namespace BobbyRE
 		byte pad[120];
 		float radius;
 		float atmosphereHeight;
+		byte pad2[0x1C];
+		uint8_t bodyType; //1 = star, 2 = planet, 3 = moon
 	};
 
 	struct RefSystemTransform
