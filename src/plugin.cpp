@@ -201,7 +201,7 @@ BobbyRE::NiPoint4_double computeTargetSpacePos(float offset)
 	BobbyRE::PlanetComponent* c = getPlanetComponent(planetID, nullptr);
 	double p[4]; float up[3];
 	BobbyRE::GetPlayerSystemPos(p, up);
-	const double rCutD = double(c->radius) + g_takeoffState.maxZ + g_takeoffState.fakeHeight - 50000.0;
+	const double rCutD = double(c->radius) + g_takeoffState.maxZ + g_takeoffState.fakeHeight - (c->radius * 0.02);
 	const double r = rCutD + offset;
 
 	BobbyRE::NiPoint4_double result;
